@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"><meta><title>Netty的整体架构脉络 - 阿东IT博客</title><link rel="manifest" href="/manifest.json"><meta name="application-name" content="阿东IT博客"><meta name="msapplication-TileImage" content="https://cdn.jsdelivr.net/gh/removeif/removeif-demo@latest/img/favicon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="阿东IT博客"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta description="Netty 整体结构 Netty 是一个设计非常用心的网络基础组件，Netty 官网给出了有关 Netty 的整体功能模块结构，却没有其他更多的解释。从图中，我们可以清晰地看出 Netty 结构一共分为三个模块：(以下为官网图片)"><meta property="og:type" content="blog"><meta property="og:title" content="wei_tung"><meta property="og:url" content="https://yweidong.github.io/"><meta property="og:site_name" content="wei_tung"><meta property="og:description" content="Netty 整体结构 Netty 是一个设计非常用心的网络基础组件，Netty 官网给出了有关 Netty 的整体功能模块结构，却没有其他更多的解释。从图中，我们可以清晰地看出 Netty 结构一共分为三个模块：(以下为官网图片)"><meta property="og:locale" content="zh_CN"><meta property="og:image" content="https://yweidong.github.io/img/dong.png"><meta property="article:published_time" content="2021-12-29T02:22:31.000Z"><meta property="article:modified_time" content="2021-12-29T08:11:29.893Z"><meta property="article:author" content="wei_tung"><meta property="article:tag" content="Netty"><meta property="twitter:card" content="summary"><meta property="twitter:image" content="/img/dong.png"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","mainEntityOfPage":{"@type":"WebPage","@id":"https://yweidong.github.io/netty/Netty%E7%9A%84%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84%E8%84%89%E7%BB%9C.html"},"headline":"阿东IT博客","image":["https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291036071.png","https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291044707.png","https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291049514.png","https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291102514.png","https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291116591.png","https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291125626.png","https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291342517.png","https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291353340.png","https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291539131.png","https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291541053.png","https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291544118.png","https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291549938.png","https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291551258.png","https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291552908.png","https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291555354.png","https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291556363.png","https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291558028.png","https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291609037.png","https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291611846.png"],"datePublished":"2021-12-29T02:22:31.000Z","dateModified":"2021-12-29T08:11:29.893Z","author":{"@type":"Person","name":"wei_tung"},"description":"Netty 整体结构 Netty 是一个设计非常用心的网络基础组件，Netty 官网给出了有关 Netty 的整体功能模块结构，却没有其他更多的解释。从图中，我们可以清晰地看出 Netty 结构一共分为三个模块：(以下为官网图片)"}</script><link rel="canonical" href="https://yweidong.github.io/netty/Netty%E7%9A%84%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84%E8%84%89%E7%BB%9C.html"><link rel="icon" href="https://cdn.jsdelivr.net/gh/removeif/removeif-demo@latest/img/favicon.png"><meta name="referrer" content="no-referrer-when-downgrade"><link rel="stylesheet" href="https://cdnjs.loli.net/ajax/libs/font-awesome/5.12.0/css/all.min.css"><link rel="stylesheet" href="https://cdnjs.loli.net/ajax/libs/highlight.js/9.12.0/styles/atom-one-light.min.css"><link rel="stylesheet" href="https://fonts.loli.net/css2?family=Ubuntu:wght@400;600&amp;family=Source+Code+Pro"><link rel="stylesheet" href="/css/default.css"><link rel="stylesheet" href="https://cdnjs.loli.net/ajax/libs/font-awesome/5.12.0/css/all.min.css"><link rel="stylesheet" href="https://fonts.loli.net/css?family=Ubuntu:400,600|Source+Code+Pro|Monda:300,300italic,400,400italic,700,700italic|Roboto Slab:300,300italic,400,400italic,700,700italic|Microsoft YaHei:300,300italic,400,400italic,700,700italic|PT Mono:300,300italic,400,400italic,700,700italic&amp;amp;subset=latin,latin-ext|Inconsolata|Itim|Lobster.css"><script src="https://cdnjs.loli.net/ajax/libs/jquery/3.3.1/jquery.min.js"></script><script src="/js/globalUtils.js"></script><style>body>.footer,body>.navbar,body>.section{opacity:0}</style><!--!--><!--!--><script src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" defer></script><!--!--><link rel="stylesheet" href="https://cdnjs.loli.net/ajax/libs/lightgallery/1.6.8/css/lightgallery.min.css"><link rel="stylesheet" href="https://cdnjs.loli.net/ajax/libs/justifiedGallery/3.7.0/css/justifiedGallery.min.css"><!--!--><!--!--><script src="https://cdnjs.loli.net/ajax/libs/pace/1.0.2/pace.min.js"></script><meta name="generator" content="Hexo 5.2.0"></head><body class="is-3-column has-navbar-fixed-top"><nav class="navbar navbar-main is-fixed-top"><div class="container"><div class="navbar-brand justify-content-center"><a class="navbar-item navbar-logo" href="/"><img src="/img/dong.png" alt="阿东IT博客" height="28"></a></div><div class="navbar-menu"><div class="navbar-start"><a class="navbar-item" href="/">首页</a><a class="navbar-item" href="/archives">归档</a><a class="navbar-item" href="/categories">分类</a><a class="navbar-item" href="/tags">标签</a><a class="navbar-item" href="/message">留言</a></div><div class="navbar-end"><a class="navbar-item is-hidden-tablet catalogue" title="目录" href="javascript:;"><i class="fas fa-list-ul"></i></a><a class="navbar-item search" title="搜索" href="javascript:;"><i class="fas fa-search"></i></a><a class="navbar-item" id="night-nav" title="Night Mode" href="javascript:;"><i class="fas fa-moon" id="night-icon"></i></a></div></div></div></nav><script type="text/javascript" src="/js/theme-setting.js"></script><section class="section"><div class="container"><div class="columns"><div class="column order-2 column-main"><!--!--><div class="card"><article class="card-content article" role="article"><div class="article-meta size-small is-uppercase level is-mobile"><div class="level-left"><i class="far fa-calendar-plus"> </i>2021-12-29  <a class="commentCountImg" href="/netty/Netty%E7%9A%84%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84%E8%84%89%E7%BB%9C.html#comment-container"><span class="display-none-class">fab5835c3d68ed7ea89e19e54fd78dd6</span><i class="far fa-comment-dots"></i> <span class="commentCount" id="fab5835c3d68ed7ea89e19e54fd78dd6">99+</span>  </a><span class="level-item"><i class="far fa-clock"> </i>28 分钟  <i class="fas fa-pencil-alt"> </i>4.1 k</span><span class="level-item" id="busuanzi_container_page_pv"><span id="busuanzi_value_page_pv">0</span>次访问</span></div></div><h1 class="title is-3 is-size-4-mobile">Netty的整体架构脉络</h1><div class="content"><h2 id="Netty-整体结构"><a href="#Netty-整体结构" class="headerlink" title="Netty 整体结构"></a>Netty 整体结构</h2><blockquote>
+<p>Netty 是一个设计非常用心的网络基础组件，Netty 官网给出了有关 Netty 的整体功能模块结构，却没有其他更多的解释。从图中，我们可以清晰地看出 Netty 结构一共分为三个模块：(以下为官网图片)</p>
+</blockquote>
+<p><img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291036071.png" alt="image-20211229103647387"></p>
+<a id="more"></a>
+
+<h3 id="Core核心层"><a href="#Core核心层" class="headerlink" title="Core核心层"></a>Core核心层</h3><blockquote>
+<p>Core 核心层是 Netty 最精华的内容，它提供了底层网络通信的通用抽象和实现，包括可扩展的事件模型、通用的通信 API、支持零拷贝的 ByteBuf 等。</p>
+</blockquote>
+<h3 id="Protocol-Support协议支持层"><a href="#Protocol-Support协议支持层" class="headerlink" title="Protocol Support协议支持层"></a>Protocol Support协议支持层</h3><blockquote>
+<p>协议支持层基本上覆盖了主流协议的编解码实现，如 HTTP、SSL、Protobuf、压缩、大文件传输、WebSocket、文本、二进制等主流协议，此外 Netty 还支持自定义应用层协议。Netty 丰富的协议支持降低了用户的开发成本，基于 Netty 我们可以快速开发 HTTP、WebSocket 等服务。</p>
+</blockquote>
+<h3 id="TransportService-传输服务层"><a href="#TransportService-传输服务层" class="headerlink" title="TransportService 传输服务层"></a>TransportService 传输服务层</h3><blockquote>
+<p>传输服务层提供了网络传输能力的定义和实现方法。它支持 Socket、HTTP 隧道、虚拟机管道等传输方式。Netty 对 TCP、UDP 等数据传输做了抽象和封装，用户可以更聚焦在业务逻辑实现上，而不必关系底层数据传输的细节。</p>
+</blockquote>
+<h2 id="Netty逻辑架构"><a href="#Netty逻辑架构" class="headerlink" title="Netty逻辑架构"></a>Netty逻辑架构</h2><blockquote>
+<p>下图是 Netty 的逻辑处理架构。Netty 的逻辑处理架构为典型网络分层架构设计，共分为网络通信层、事件调度层、服务编排层，每一层各司其职。图中包含了 Netty 每一层所用到的核心组件。我将为你介绍 Netty 的每个逻辑分层中的各个核心组件以及组件之间是如何协调运作的。</p>
+</blockquote>
+<p><img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291044707.png" alt="image-20211229104428642"></p>
+<h3 id="网络通信层"><a href="#网络通信层" class="headerlink" title="网络通信层"></a>网络通信层</h3><blockquote>
+<p>网络通信层的职责是执行网络 I/O 的操作。它支持多种网络协议和 I/O 模型的连接操作。当网络数据读取到内核缓冲区后，会触发各种网络事件，这些网络事件会分发给事件调度层进行处理。</p>
+</blockquote>
+<h3 id="BootStrap-amp-amp-ServerBootStrap"><a href="#BootStrap-amp-amp-ServerBootStrap" class="headerlink" title="BootStrap &amp;&amp; ServerBootStrap"></a>BootStrap &amp;&amp; ServerBootStrap</h3><blockquote>
+<p>Bootstrap 是“引导”的意思，它主要负责整个 Netty 程序的启动、初始化、服务器连接等过程，它相当于一条主线，串联了 Netty 的其他核心组件。</p>
+<p>如下图所示，Netty 中的引导器共分为两种类型：一个为用于客户端引导的 Bootstrap，另一个为用于服务端引导的 ServerBootStrap，它们都继承自抽象类 AbstractBootstrap。</p>
+</blockquote>
+<p><img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291049514.png" alt="image-20211229104948454"></p>
+<blockquote>
+<p> Bootstrap 和 ServerBootStrap 十分相似，两者非常重要的区别在于 Bootstrap 可用于连接远端服务器，只绑定一个 EventLoopGroup。而 ServerBootStrap 则用于服务端启动绑定本地端口，会绑定两个 EventLoopGroup，这两个 EventLoopGroup 通常称为 Boss 和 Worker。</p>
+<p>ServerBootStrap 中的 Boss 和 Worker 是什么角色呢？它们之间又是什么关系？这里的 Boss 和 Worker 可以理解为“老板”和“员工”的关系。每个服务器中都会有一个 Boss，也会有一群做事情的 Worker。Boss 会不停地接收新的连接，然后将连接分配给一个个 Worker 处理连接。</p>
+<p>有了 Bootstrap 组件，我们可以更加方便地配置和启动 Netty 应用程序，它是整个 Netty 的入口，串接了 Netty 所有核心组件的初始化工作。</p>
+</blockquote>
+<h3 id="Channel"><a href="#Channel" class="headerlink" title="Channel"></a>Channel</h3><blockquote>
+<p>Channel 的字面意思是“通道”，它是网络通信的载体。Channel提供了基本的 API 用于网络 I/O 操作，如 register、bind、connect、read、write、flush 等。Netty 自己实现的 Channel 是以 JDK NIO Channel 为基础的，相比较于 JDK NIO，Netty 的 Channel 提供了更高层次的抽象，同时屏蔽了底层 Socket 的复杂性，赋予了 Channel 更加强大的功能，你在使用 Netty 时基本不需要再与 Java Socket 类直接打交道。</p>
+<p>下图是 Channel 家族的图谱。AbstractChannel 是整个家族的基类，派生出 AbstractNioChannel、AbstractOioChannel、AbstractEpollChannel 等子类，每一种都代表了不同的 I/O 模型和协议类型。常用的 Channel 实现类有：</p>
+</blockquote>
+<p><img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291102514.png" alt="image-20211229110208460"></p>
+<blockquote>
+<ul>
+<li>NioServerSocketChannel/EpollServerSocketChannel 都是异步TCP服务端；</li>
+<li>NioSocketChannel/EpollSocketChannel 都是异步TCP客户端</li>
+<li>两者的区别是一个使用了select模型，一个使用了epoll 模型(这里不深入展开)</li>
+</ul>
+</blockquote>
+<blockquote>
+<p>当然 Channel 会有多种状态，如连接建立、连接注册、数据读写、连接销毁等。随着状态的变化，Channel 处于不同的生命周期，每一种状态都会绑定相应的事件回调，下面的表格我列举了 Channel 最常见的状态所对应的事件回调。</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>事件</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>channelRegistered</td>
+<td>Channel创建后被注册到EventLoop上</td>
+</tr>
+<tr>
+<td>channelUnregistered</td>
+<td>Channel创建后未注册或者从EventLoop上取消</td>
+</tr>
+<tr>
+<td>channelActive</td>
+<td>Channel处于就绪状态，可以被读写</td>
+</tr>
+<tr>
+<td>channelInactive</td>
+<td>Channel 处于非就绪状态</td>
+</tr>
+<tr>
+<td>channelRead</td>
+<td>Channel可以从远端读取到数据</td>
+</tr>
+<tr>
+<td>channelReadComplete</td>
+<td>Channel读取数据完成</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>BootStrap 和 ServerBootStrap 分别负责客户端和服务端的启动，它们是非常强大的辅助工具类；Channel 是网络通信的载体，提供了与底层 Socket 交互的能力。那么 Channel 生命周期内的事件都是如何被处理的呢？那就是 Netty 事件调度层的工作职责了。</p>
+</blockquote>
+<h3 id="事件调度层"><a href="#事件调度层" class="headerlink" title="事件调度层"></a>事件调度层</h3><blockquote>
+<p>事件调度层的职责是通过 Reactor 线程模型对各类事件进行聚合处理，通过 Selector 主循环线程集成多种事件（ I/O 事件、信号事件、定时事件等），实际的业务处理逻辑是交由服务编排层中相关的 Handler 完成。</p>
+<p>事件调度层的核心组件包括 EventLoopGroup、EventLoop。</p>
+</blockquote>
+<h4 id="EventLoopGroup-amp-amp-EventLoop。"><a href="#EventLoopGroup-amp-amp-EventLoop。" class="headerlink" title="EventLoopGroup &amp;&amp; EventLoop。"></a>EventLoopGroup &amp;&amp; EventLoop。</h4><blockquote>
+<p>EventLoopGroup 本质是一个线程池，主要负责接收 I/O 请求，并分配线程执行处理请求。在下图中，我为你讲述了 EventLoopGroup、EventLoop 与 Channel 的关系。</p>
+</blockquote>
+<p><img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291116591.png" alt="image-20211229111617532"></p>
+<ul>
+<li>一个 EventLoopGroup 往往包含一个或者多个 EventLoop。EventLoop 用于处理 Channel 生命周期内的所有 I/O 事件，如 accept、connect、read、write 等 I/O 事件。</li>
+<li>EventLoop 同一时间会与一个线程绑定，每个 EventLoop 负责处理多个 Channel。</li>
+<li>每新建一个 Channel，EventLoopGroup 会选择一个 EventLoop 与其绑定。该 Channel 在生命周期内都可以对 EventLoop 进行多次绑定和解绑。</li>
+</ul>
+<blockquote>
+<p>下图是 EventLoopGroup 的家族图谱。可以看出 Netty 提供了 EventLoopGroup 的多种实现，而且 EventLoop 则是 EventLoopGroup 的子接口，所以也可以把 EventLoop 理解为 EventLoopGroup，但是它只包含一个 EventLoop 。</p>
+</blockquote>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Will handle all the I/O operations for a &#123;<span class="doctag">@link</span> Channel&#125; once registered.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * One &#123;<span class="doctag">@link</span> EventLoop&#125; instance will usually handle more than one &#123;<span class="doctag">@link</span> Channel&#125; but this may depend on</span></span><br><span class="line"><span class="comment"> * implementation details and internals.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">EventLoop</span> <span class="keyword">extends</span> <span class="title">OrderedEventExecutor</span>, <span class="title">EventLoopGroup</span> </span>&#123;</span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function">EventLoopGroup <span class="title">parent</span><span class="params">()</span></span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291125626.png" alt="image-20211229112521567" style="zoom:50%;" />
+
+<blockquote>
+<p>EventLoopGroup 的实现类是 NioEventLoopGroup，NioEventLoopGroup 也是 Netty 中最被推荐使用的线程模型。NioEventLoopGroup 继承于 MultithreadEventLoopGroup，是基于 NIO 模型开发的，可以把 NioEventLoopGroup 理解为一个线程池，每个线程负责处理多个 Channel，而同一个 Channel 只会对应一个线程。</p>
+<p>EventLoopGroup 是 Netty 的核心处理引擎，那么 EventLoopGroup 和之前提到的 Reactor 线程模型到底是什么关系呢？其实 EventLoopGroup 是 Netty Reactor 线程模型的具体实现方式，Netty 通过创建不同的 EventLoopGroup 参数配置，就可以支持 Reactor 的三种线程模型：</p>
+</blockquote>
+<ul>
+<li>单线程模型：EventLoopGroup 只包含一个 EventLoop，Boss 和 Worker 使用同一个EventLoopGroup；</li>
+<li>多线程模型：EventLoopGroup 包含多个 EventLoop，Boss 和 Worker 使用同一个EventLoopGroup；</li>
+<li>主从多线程模型：EventLoopGroup 包含多个 EventLoop，Boss 是主 Reactor，Worker 是从 Reactor，它们分别使用不同的 EventLoopGroup，主 Reactor 负责新的网络连接 Channel 创建，然后把 Channel 注册到从 Reactor。</li>
+</ul>
+<blockquote>
+<p>在介绍完事件调度层之后，可以说 Netty 的发动机已经转起来了，事件调度层负责监听网络连接和读写操作，然后触发各种类型的网络事件，需要一种机制管理这些错综复杂的事件，并有序地执行，接下来我们便一起学习 Netty 服务编排层中核心组件的职责。</p>
+</blockquote>
+<h3 id="服务编排层"><a href="#服务编排层" class="headerlink" title="服务编排层"></a>服务编排层</h3><blockquote>
+<p>服务编排层的职责是负责组装各类服务，它是 Netty 的核心处理链，用以实现网络事件的动态编排和有序传播。</p>
+</blockquote>
+<blockquote>
+<p>服务编排层的核心组件包括 ChannelPipeline、ChannelHandler、ChannelHandlerContext。</p>
+</blockquote>
+<h4 id="ChannelPipeline"><a href="#ChannelPipeline" class="headerlink" title="ChannelPipeline"></a>ChannelPipeline</h4><blockquote>
+<p>ChannelPipeline 是 Netty 的核心编排组件，负责组装各种 ChannelHandler，实际数据的编解码以及加工处理操作都是由 ChannelHandler 完成的。ChannelPipeline 可以理解为ChannelHandler 的实例列表——内部通过双向链表将不同的 ChannelHandler 链接在一起。当 I/O 读写事件触发时，ChannelPipeline 会依次调用 ChannelHandler 列表对 Channel 的数据进行拦截和处理。</p>
+</blockquote>
+<blockquote>
+<p>ChannelPipeline 是线程安全的，因为每一个新的 Channel 都会对应绑定一个新的 ChannelPipeline。一个 ChannelPipeline 关联一个 EventLoop，一个 EventLoop 仅会绑定一个线程。</p>
+</blockquote>
+<p>C hannelPipeline大致结构流程</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line">* &lt;pre&gt;</span><br><span class="line">*                                                 I/O Request</span><br><span class="line">*                                            via &#123;<span class="meta">@link</span> Channel&#125; or</span><br><span class="line">*                                        &#123;<span class="meta">@link</span> ChannelHandlerContext&#125;</span><br><span class="line">*                                                      |</span><br><span class="line">*  +---------------------------------------------------+---------------+</span><br><span class="line">*  |                           ChannelPipeline         |               |</span><br><span class="line">*  |                                                  \|/              |</span><br><span class="line">*  |    +---------------------+            +-----------+----------+    |</span><br><span class="line">*  |    | Inbound Handler  N  |            | Outbound Handler  <span class="number">1</span>  |    |</span><br><span class="line">*  |    +----------+----------+            +-----------+----------+    |</span><br><span class="line">*  |              /|\                                  |               |</span><br><span class="line">*  |               |                                  \|/              |</span><br><span class="line">*  |    +----------+----------+            +-----------+----------+    |</span><br><span class="line">*  |    | Inbound Handler N-<span class="number">1</span> |            | Outbound Handler  <span class="number">2</span>  |    |</span><br><span class="line">*  |    +----------+----------+            +-----------+----------+    |</span><br><span class="line">*  |              /|\                                  .               |</span><br><span class="line">*  |               .                                   .               |</span><br><span class="line">*  | ChannelHandlerContext.fireIN_EVT() ChannelHandlerContext.OUT_EVT()|</span><br><span class="line">*  |        [ method call]                       [method call]         |</span><br><span class="line">*  |               .                                   .               |</span><br><span class="line">*  |               .                                  \|/              |</span><br><span class="line">*  |    +----------+----------+            +-----------+----------+    |</span><br><span class="line">*  |    | Inbound Handler  <span class="number">2</span>  |            | Outbound Handler M-<span class="number">1</span> |    |</span><br><span class="line">*  |    +----------+----------+            +-----------+----------+    |</span><br><span class="line">*  |              /|\                                  |               |</span><br><span class="line">*  |               |                                  \|/              |</span><br><span class="line">*  |    +----------+----------+            +-----------+----------+    |</span><br><span class="line">*  |    | Inbound Handler  <span class="number">1</span>  |            | Outbound Handler  M  |    |</span><br><span class="line">*  |    +----------+----------+            +-----------+----------+    |</span><br><span class="line">*  |              /|\                                  |               |</span><br><span class="line">*  +---------------+-----------------------------------+---------------+</span><br><span class="line">*                  |                                  \|/</span><br><span class="line">*  +---------------+-----------------------------------+---------------+</span><br><span class="line">*  |               |                                   |               |</span><br><span class="line">*  |       [ Socket.read() ]                    [ Socket.write() ]     |</span><br><span class="line">*  |                                                                   |</span><br><span class="line">*  |  Netty Internal I/<span class="function">O <span class="title">Threads</span> <span class="params">(Transport Implementation)</span>            |</span></span><br><span class="line"><span class="function">*  +-------------------------------------------------------------------+</span></span><br><span class="line"><span class="function">* &lt;/pre&gt;</span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>从上图可以看出，ChannelPipeline 中包含入站 ChannelInboundHandler 和出站 ChannelOutboundHandler 两种处理器，我们结合客户端和服务端的数据收发流程来理解 Netty 的这两个概念。</p>
+</blockquote>
+<p><img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291342517.png" alt="image-20211229134221419"></p>
+<blockquote>
+<p>客户端和服务端都有各自的 ChannelPipeline。以客户端为例，数据从客户端发向服务端，该过程称为出站，反之则称为入站。数据入站会由一系列 InBoundHandler 处理，然后再以相反方向的 OutBoundHandler 处理后完成出站。我们经常使用的编码 Encoder 是出站操作，解码 Decoder 是入站操作。服务端接收到客户端数据后，需要先经过 Decoder 入站处理后，再通过 Encoder 出站通知客户端。所以客户端和服务端一次完整的请求应答过程可以分为三个步骤：客户端出站（请求数据）、服务端入站（解析数据并执行业务逻辑）、服务端出站（响应结果）。</p>
+</blockquote>
+<h4 id="ChannelHandler-amp-amp-ChannelHandlerContext"><a href="#ChannelHandler-amp-amp-ChannelHandlerContext" class="headerlink" title="ChannelHandler &amp;&amp; ChannelHandlerContext"></a>ChannelHandler &amp;&amp; ChannelHandlerContext</h4><blockquote>
+<p>下图描述了 Channel 与 ChannelPipeline 的关系，从图中可以看出，每创建一个 Channel 都会绑定一个新的 ChannelPipeline，ChannelPipeline 中每加入一个 ChannelHandler 都会绑定一个 ChannelHandlerContext。由此可见，ChannelPipeline、ChannelHandlerContext、ChannelHandler 三个组件的关系是密切相关的</p>
+</blockquote>
+<p><img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291353340.png" alt="image-20211229135321258"></p>
+<blockquote>
+<p> ChannelHandlerContext 用于保存 ChannelHandler 上下文，通过 ChannelHandlerContext 我们可以知道 ChannelPipeline 和 ChannelHandler 的关联关系。ChannelHandlerContext 可以实现 ChannelHandler 之间的交互，ChannelHandlerContext 包含了 ChannelHandler 生命周期的所有事件，如 connect、bind、read、flush、write、close 等。此外，你可以试想这样一个场景，如果每个 ChannelHandler 都有一些通用的逻辑需要实现，没有 ChannelHandlerContext 这层模型抽象，你是不是需要写很多相同的代码呢？</p>
+</blockquote>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">ChannelHandlerContext</span> <span class="keyword">extends</span> <span class="title">AttributeMap</span>, <span class="title">ChannelInboundInvoker</span>, <span class="title">ChannelOutboundInvoker</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * Return the &#123;<span class="doctag">@link</span> Channel&#125; which is bound to the &#123;<span class="doctag">@link</span> ChannelHandlerContext&#125;.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="function">Channel <span class="title">channel</span><span class="params">()</span></span>;</span><br><span class="line">  	...</span><br></pre></td></tr></table></figure>
+
+<img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291539131.png" alt="image-20211229153931053" style="zoom:50%;" />
+
+<blockquote>
+<p>以上便是 Netty 的逻辑处理架构，可以看出 Netty 的架构分层设计得非常合理，屏蔽了底层 NIO 以及框架层的实现细节，对于业务开发者来说，只需要关注业务逻辑的编排和实现即可。</p>
+</blockquote>
+<h2 id="组件关系梳理"><a href="#组件关系梳理" class="headerlink" title="组件关系梳理"></a>组件关系梳理</h2><img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291541053.png" alt="image-20211229154110989" style="zoom:50%;" />
+
+<ul>
+<li>服务端启动初始化时有 Boss EventLoopGroup 和 Worker EventLoopGroup 两个组件，其中 Boss 负责监听网络连接事件。当有新的网络连接事件到达时，则将 Channel 注册到 Worker EventLoopGroup。</li>
+<li>Worker EventLoopGroup 会分配一个 EventLoop 负责处理该 Channel 的读写事件。每个 EventLoop 都是单线程的，通过 Selector 进行事件循环。</li>
+<li>当客户端发起 I/O 读写事件时，服务端 EventLoop 会进行数据的读取，然后通过 Pipeline 触发各种监听器进行数据的加工处理。</li>
+<li>客户端数据会被传递到 ChannelPipeline 的第一个 ChannelInboundHandler 中，数据处理完成后，将加工完成的数据传递给下一个 ChannelInboundHandler。</li>
+<li>当数据写回客户端时，会将处理结果在 ChannelPipeline 的 ChannelOutboundHandler 中传播，最后到达客户端。</li>
+</ul>
+<h3 id="Netty-源码结构"><a href="#Netty-源码结构" class="headerlink" title="Netty 源码结构"></a>Netty 源码结构</h3><blockquote>
+<p>Netty 源码分为多个模块，模块之间职责划分非常清楚。如同上文整体功能模块一样，Netty 源码模块的划分也是基本契合的。</p>
+</blockquote>
+<img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291544118.png" alt="image-20211229154406059" style="zoom:50%;" />
+
+<blockquote>
+<p>我们不仅可以使用 Netty all-in-one 的 Jar 包，也可以单独使用其中某些工具包。下面我根据 Netty 的分层结构以及实际的业务场景具体介绍 Netty 中常用的工具包。</p>
+</blockquote>
+<h4 id="Core核心层模块"><a href="#Core核心层模块" class="headerlink" title="Core核心层模块"></a>Core核心层模块</h4><blockquote>
+<p>netty-common模块是 Netty 的核心基础包，提供了丰富的工具类，其他模块都需要依赖它。在 common 模块中，常用的包括通用工具类和自定义并发包</p>
+</blockquote>
+<img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291549938.png" alt="image-20211229154955855" style="zoom:50%;" />
+
+<ul>
+<li><p>通用工具类：比如定时器工具 TimerTask、时间轮 HashedWheelTimer 等。</p>
+</li>
+<li><p>自定义并发包：比如异步模型<strong>Future &amp; Promise</strong>、相比 JDK 增强的 FastThreadLocal 等。</p>
+</li>
+</ul>
+<blockquote>
+<p>在netty-buffer 模块中Netty自己实现了的一个更加完备的ByteBuf 工具类，用于网络通信中的数据载体。由于人性化的 Buffer API 设计，它已经成为 Java ByteBuffer 的完美替代品。ByteBuf 的动态性设计不仅解决了 ByteBuffer 长度固定造成的内存浪费问题，而且更安全地更改了 Buffer 的容量。此外 Netty 针对 ByteBuf 做了很多优化，例如缓存池化、减少数据拷贝的 CompositeByteBuf 等。</p>
+</blockquote>
+<img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291551258.png" alt="image-20211229155136186" style="zoom:50%;" />
+
+<blockquote>
+<p>netty-resover模块主要提供了一些有关基础设施的解析工具，包括IP Address，HostName,DNS等。</p>
+</blockquote>
+<img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291552908.png" alt="image-20211229155226833" style="zoom:50%;" />
+
+<h4 id="Protocol-Support-协议支持层膜哦快"><a href="#Protocol-Support-协议支持层膜哦快" class="headerlink" title="Protocol Support 协议支持层膜哦快"></a>Protocol Support 协议支持层膜哦快</h4><blockquote>
+<p>netty-codec模块主要负责编解码工作，通过编解码实现原始字节数据业务实体对象之间的相互转化。如下图所示，Netty 支持了大多数业界主流协议的编解码器，如 HTTP、HTTP2、Redis、XML 等，为开发者节省了大量的精力。此外该模块提供了抽象的编解码类 ByteToMessageDecoder 和 MessageToByteEncoder，通过继承这两个类我们可以轻松实现自定义的编解码逻辑。</p>
+</blockquote>
+<img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291555354.png" alt="image-20211229155530258" style="zoom:50%;" />
+
+<blockquote>
+<p> netty-handler模块主要负责数据处理工作。Netty 中关于数据处理的部分，本质上是一串有序 handler 的集合。netty-handler 模块提供了开箱即用的 ChannelHandler 实现类，例如日志、IP 过滤、流量整形等，如果你需要这些功能，仅需在 pipeline 中加入相应的 ChannelHandler 即可。</p>
+</blockquote>
+<img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291556363.png" alt="image-20211229155626274" style="zoom:50%;" />
+
+<h4 id="Transport-Service-传输服务层模块"><a href="#Transport-Service-传输服务层模块" class="headerlink" title="Transport Service 传输服务层模块"></a>Transport Service 传输服务层模块</h4><blockquote>
+<p>netty-transport 模块可以说是 Netty 提供数据处理和传输的核心模块。该模块提供了很多非常重要的接口，如 Bootstrap、Channel、ChannelHandler、EventLoop、EventLoopGroup、ChannelPipeline 等。其中 Bootstrap 负责客户端或服务端的启动工作，包括创建、初始化 Channel 等；EventLoop 负责向注册的 Channel 发起 I/O 读写操作；ChannelPipeline 负责 ChannelHandler 的有序编排，这些组件在介绍 Netty 逻辑架构的时候都有所涉及。</p>
+</blockquote>
+<img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291558028.png" alt="image-20211229155813958" style="zoom:50%;" />
+
+<p><img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291609037.png" alt="image-20211229160902956"></p>
+<p><img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291611846.png" alt="image-20211229161123774"></p>
+</div><div class="article-licensing box"><div class="licensing-title"><p>Netty的整体架构脉络</p><p><a href="https://yweidong.github.io/netty/Netty的整体架构脉络.html">https://yweidong.github.io/netty/Netty的整体架构脉络.html</a></p></div><div class="licensing-meta level is-mobile"><div class="level-left"><div class="level-item is-narrow"><div><h6>作者</h6><a href="https://Yweidong.github.io"><p>wei_tung</p></a></div></div><div class="level-item is-narrow"><div><h6>发布于</h6><p>2021-12-29</p></div></div><div class="level-item is-narrow"><div><h6>更新于</h6><p>2021-12-29</p></div></div><div class="level-item is-narrow"><div><h6>许可协议</h6><p><a class="icon" rel="noopener" target="_blank" title="Creative Commons" href="https://creativecommons.org/"><i class="fab fa-creative-commons"></i></a><a class="icon" rel="noopener" target="_blank" title="Attribution" href="https://creativecommons.org/licenses/by/4.0/"><i class="fab fa-creative-commons-by"></i></a><a class="icon" rel="noopener" target="_blank" title="Noncommercial" href="https://creativecommons.org/licenses/by-nc/4.0/"><i class="fab fa-creative-commons-nc"></i></a></p></div></div></div></div></div><div class="recommend-area"></div><link rel="stylesheet" href="https://cdnjs.loli.net/ajax/libs/social-share.js/1.0.16/css/share.min.css"><div class="social-share"></div><script src="https://cdnjs.loli.net/ajax/libs/social-share.js/1.0.16/js/social-share.min.js"></script></article></div><div class="card"><div class="card-content"><h3 class="menu-label has-text-centered">喜欢这篇文章？打赏一下作者吧</h3><div class="buttons is-centered"><a class="button donate" data-type="alipay"><span class="icon is-small"><i class="fab fa-alipay"></i></span><span>支付宝</span><span class="qrcode"><img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291611846.png" alt="支付宝"></span></a><a class="button donate" data-type="wechat"><span class="icon is-small"><i class="fab fa-weixin"></i></span><span>微信</span><span class="qrcode"><img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291609037.png" alt="微信"></span></a></div></div></div><!--!--><div class="card"><div class="card-content"><div class="title is-5">评论</div><div id="comment-container"></div><link rel="stylesheet" href="https://cdnjs.loli.net/ajax/libs/gitalk/1.6.0/gitalk.css"><script> $.getScript('/js/gitalk.min.js', function () { 
+            var gitalk = new Gitalk({
+            language:'zh-CN',
+            id: 'fab5835c3d68ed7ea89e19e54fd78dd6',
+            repo: 'blog_comment',
+            owner: 'Yweidong',
+            clientID: 'ae76bb3b78b0961c9ac4',
+            clientSecret: '115ae4b382976bfdf4cc82d28b8569ae94277218',
+            admin: ["Yweidong"],
+            createIssueManually: true,
+            distractionFreeMode: false,
+            perPage: 10,
+            pagerDirection: 'last',
+            proxy: 'https://cors-anywhere.azm.workers.dev/https://github.com/login/oauth/access_token',
+            
+            enableHotKey: true,
+            isLocked: false
+        })
+        gitalk.render('comment-container')});</script></div></div></div><div class="column column-left is-4-tablet is-4-desktop is-3-widescreen  order-1 is-sticky"><div class="card widget" id="toc" data-type="toc"><div class="card-content"><div class="menu"><h3 class="menu-label">目录</h3><ul class="menu-list"><li><a class="is-flex is-mobile" href="#Netty-整体结构"><span>Netty 整体结构</span></a><ul class="menu-list"><li><a class="is-flex is-mobile" href="#Core核心层"><span>Core核心层</span></a></li><li><a class="is-flex is-mobile" href="#Protocol-Support协议支持层"><span>Protocol Support协议支持层</span></a></li><li><a class="is-flex is-mobile" href="#TransportService-传输服务层"><span>TransportService 传输服务层</span></a></li></ul></li><li><a class="is-flex is-mobile" href="#Netty逻辑架构"><span>Netty逻辑架构</span></a><ul class="menu-list"><li><a class="is-flex is-mobile" href="#网络通信层"><span>网络通信层</span></a></li><li><a class="is-flex is-mobile" href="#BootStrap-amp-amp-ServerBootStrap"><span>BootStrap &amp;&amp; ServerBootStrap</span></a></li><li><a class="is-flex is-mobile" href="#Channel"><span>Channel</span></a></li><li><a class="is-flex is-mobile" href="#事件调度层"><span>事件调度层</span></a><ul class="menu-list"><li><a class="is-flex is-mobile" href="#EventLoopGroup-amp-amp-EventLoop。"><span>EventLoopGroup &amp;&amp; EventLoop。</span></a></li></ul></li><li><a class="is-flex is-mobile" href="#服务编排层"><span>服务编排层</span></a><ul class="menu-list"><li><a class="is-flex is-mobile" href="#ChannelPipeline"><span>ChannelPipeline</span></a></li><li><a class="is-flex is-mobile" href="#ChannelHandler-amp-amp-ChannelHandlerContext"><span>ChannelHandler &amp;&amp; ChannelHandlerContext</span></a></li></ul></li></ul></li><li><a class="is-flex is-mobile" href="#组件关系梳理"><span>组件关系梳理</span></a><ul class="menu-list"><li><a class="is-flex is-mobile" href="#Netty-源码结构"><span>Netty 源码结构</span></a><ul class="menu-list"><li><a class="is-flex is-mobile" href="#Core核心层模块"><span>Core核心层模块</span></a></li><li><a class="is-flex is-mobile" href="#Protocol-Support-协议支持层膜哦快"><span>Protocol Support 协议支持层膜哦快</span></a></li><li><a class="is-flex is-mobile" href="#Transport-Service-传输服务层模块"><span>Transport Service 传输服务层模块</span></a></li></ul></li></ul></li></ul></div></div><style>.menu-list > li > a.is-active + .menu-list { display: block; }.menu-list > li > a + .menu-list { display: none; }</style><script src="/js/toc.js" defer></script></div><div class="card widget" data-type="profile"><div class="card-content"><nav class="level"><div class="level-item has-text-centered flex-shrink-1"><div><figure class="image is-128x128 mx-auto mb-2"><img class="avatar is-rounded" src="https://cdn.jsdelivr.net/gh/removeif/removeif-demo@latest/img/avatar.png" alt="wei_tung"></figure><p class="title is-size-4 is-block" style="line-height:inherit;">wei_tung</p><p class="is-size-6 is-block">尚未执佩剑，转眼即江湖</p><p class="is-size-6 is-flex justify-content-center"><i class="fas fa-map-marker-alt mr-1"></i><span>JiangSu,China</span></p></div></div></nav><nav class="level is-mobile"><div class="level-item has-text-centered is-marginless"><div><p class="heading">文章</p><a href="/archives"><p class="title">1</p></a></div></div><div class="level-item has-text-centered is-marginless"><div><p class="heading">分类</p><a href="/categories"><p class="title">2</p></a></div></div><div class="level-item has-text-centered is-marginless"><div><p class="heading">标签</p><a href="/tags"><p class="title">1</p></a></div></div></nav><div class="level"><a class="level-item button is-primary is-rounded" href="https://github.com/Yweidong" target="_blank" rel="noopener">关注我</a></div><div class="level is-mobile"><a class="level-item button is-transparent is-marginless" target="_blank" rel="noopener" title="Github" href="https://github.com/Yweidong"><i class="fab fa-github"></i></a><a class="level-item button is-transparent is-marginless" target="_blank" rel="noopener" title="Email" href="mailto:1371690483@qq.com"><i class="fa fa-envelope"></i></a><a class="level-item button is-transparent is-marginless" target="_blank" rel="noopener" title="Next" href="https://github.com/Yweidong/Yweidong.github.io"><i class="fab fa-dribbble"></i></a><a class="level-item button is-transparent is-marginless" target="_blank" rel="noopener" title="RSS" href="/atom.xml"><i class="fas fa-rss"></i></a></div><div><hr><p id="hitokoto">:D 一言句子获取中...</p><script type="text/javascript" defer>function getYiyan(){
+                                $.getJSON("https://v1.hitokoto.cn/", function (data) {
+                                if(data){
+                                    $('#hitokoto').html("");
+                                    $('#hitokoto').append("<strong style='color: #3273dc;'>"+data.hitokoto+"</strong>"+
+                                    "<p>"+"来源《"+data.from+"》</p><p>提供者-"+data.creator+"</p>");
+                                }});}
+                                $(function (){getYiyan();$('#hitokoto').click(function(){getYiyan();})});</script></div></div></div><div class="card widget" data-type="links"><div class="card-content"><div class="menu"><h3 class="menu-label">链接</h3><ul class="menu-list"><li><a class="level is-mobile" href="https://hexo.io" target="_blank" rel="noopener"><span class="level-left"><span class="level-item">Hexo</span></span><span class="level-right"><span class="level-item tag">hexo.io</span></span></a></li><li><a class="level is-mobile" href="https://bulma.io" target="_blank" rel="noopener"><span class="level-left"><span class="level-item">Bulma</span></span><span class="level-right"><span class="level-item tag">bulma.io</span></span></a></li></ul></div></div></div><div class="card widget"><div class="card-content"><h3 class="menu-label">最新评论</h3><span class="body_hot_comment">加载中，最新评论有1分钟缓存...</span></div></div><div class="card widget"><div class="card-content"><h3 class="menu-label">最新文章</h3><article class="media"><div class="media-content"><p class="date"><time dateTime="2021-12-29T02:22:31.000Z">2021-12-29</time></p><p class="title"><a href="/netty/Netty%E7%9A%84%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84%E8%84%89%E7%BB%9C.html">Netty的整体架构脉络</a></p><p class="categories"><a href="/categories/Netty/">Netty</a> / <a href="/categories/Netty/Netty%E6%BA%90%E7%A0%81%E5%89%96%E6%9E%90/">Netty源码剖析</a></p></div></article></div></div><div class="card widget"><div class="card-content"><div class="menu"><h3 class="menu-label">分类</h3><ul class="menu-list"><li><a class="level is-mobile is-marginless" href="/categories/Netty/"><span class="level-start"><span class="level-item">Netty</span></span><span class="level-end"><span class="level-item tag">1</span></span></a><ul class="mr-0"><li><a class="level is-mobile is-marginless" href="/categories/Netty/Netty%E6%BA%90%E7%A0%81%E5%89%96%E6%9E%90/"><span class="level-start"><span class="level-item">Netty源码剖析</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li></ul></li></ul></div></div></div><div class="card widget"><div class="card-content"><div class="menu"><h3 class="menu-label">归档</h3><ul class="menu-list"><li><a class="level is-mobile is-marginless" href="/archives/2021/12/"><span class="level-start"><span class="level-item">十二月 2021</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li></ul></div></div></div><div class="card widget"><div class="card-content"><div class="menu"><h3 class="menu-label">标签</h3><div class="field is-grouped is-grouped-multiline"><div class="control"><a class="tags has-addons" href="/tags/Netty/"><span class="tag">Netty</span><span class="tag is-grey-lightest">1</span></a></div></div></div></div></div><div class="card widget" data-type="subscribe-email"><div class="card-content"><div class="menu"><h3 class="menu-label">订阅更新</h3><form action="https://feedburner.google.com/fb/a/mailverify" method="post" target="popupwindow" onsubmit="window.open(&#039;https://feedburner.google.com/fb/a/mailverify?uri=&#039;,&#039;popupwindow&#039;,&#039;scrollbars=yes,width=550,height=520&#039;);return true"><input type="hidden" value="" name="uri"><input type="hidden" name="loc" value="en_US"><div class="field has-addons"><div class="control has-icons-left is-expanded"><input class="input" name="email" type="email" placeholder="Email"><span class="icon is-small is-left"><i class="fas fa-envelope"></i></span></div><div class="control"><input class="button" type="submit" value="订阅"></div></div></form></div></div></div><!--!--><div class="column-right-shadow is-hidden-widescreen"></div></div></div></div></section><footer class="footer"><div class="container"><div class="level"><div class="level-start"><a class="footer-logo is-block mb-2" href="/"><img src="/img/dong.png" alt="阿东IT博客" height="28"></a><p class="size-small"><span>&copy; 2021 wei_tung</span>  Powered by <a href="https://hexo.io/" target="_blank">Hexo</a> &amp; <a href="https://github.com/ppoffice/hexo-theme-icarus" target="_blank">Icarus</a> &amp; <a href="https://github.com/removeif/hexo-theme-amazing" target="_blank">Amazing</a> <br><span>© 版权说明：[本网站所有内容均收集于互联网或自己创作,<br />&nbsp;&nbsp;&nbsp;&nbsp;方便于网友与自己学习交流，如有侵权，请<a href="/message" target="_blank">留言</a>，立即处理]<br /></span><div class="size-small"><span>❤️感谢 <strong><span id="busuanzi_value_site_uv">99+</span></strong> 小伙伴的 <strong><span id="busuanzi_value_site_pv">99+</span></strong> 次光临！❤️</span></div></p></div><div class="level-end"><div class="field has-addons"><p class="control"><a class="button is-transparent is-large" target="_blank" rel="noopener" title="Creative Commons" href="https://creativecommons.org/"><i class="fab fa-creative-commons"></i></a></p><p class="control"><a class="button is-transparent is-large" target="_blank" rel="noopener" title="Attribution 4.0 International" href="https://creativecommons.org/licenses/by/4.0/"><i class="fab fa-creative-commons-by"></i></a></p></div></div></div></div></footer><script src="https://cdnjs.loli.net/ajax/libs/moment.js/2.22.2/moment-with-locales.min.js"></script><script src="https://cdnjs.loli.net/ajax/libs/clipboard.js/2.0.4/clipboard.min.js" async></script><script>moment.locale("zh-CN");</script><script>var IcarusThemeSettings = {
+            article: {
+                highlight: {
+                    clipboard: true,
+                    fold: 'unfolded'
+                }
+            }
+        };</script><script src="/js/column.js"></script><script src="/js/animation.js"></script><a id="back-to-top" title="回到顶端" href="javascript:;"><i class="fas fa-chevron-up"></i></a><script src="/js/back_to_top.js" defer></script><!--!--><!--!--><!--!--><script src="https://cdnjs.loli.net/ajax/libs/lightgallery/1.6.8/js/lightgallery.min.js" defer></script><script src="https://cdnjs.loli.net/ajax/libs/justifiedGallery/3.7.0/js/jquery.justifiedGallery.min.js" defer></script><script>window.addEventListener("load", () => {
+            if (typeof $.fn.lightGallery === 'function') {
+                $('.article').lightGallery({ selector: '.gallery-item' });
+            }
+            if (typeof $.fn.justifiedGallery === 'function') {
+                if ($('.justified-gallery > p > .gallery-item').length) {
+                    $('.justified-gallery > p > .gallery-item').unwrap();
+                }
+                $('.justified-gallery').justifiedGallery();
+            }
+        });</script><!--!--><!--!--><!--!--><script src="/js/main.js" defer></script><script>$.getScript('/js/comment-issue-data.js',function(){loadIssueData('ae76bb3b78b0961c9ac4','115ae4b382976bfdf4cc82d28b8569ae94277218','Yweidong','blog_comment',false);})</script><div class="searchbox"><div class="searchbox-container"><div class="searchbox-header"><div class="searchbox-input-container"><input class="searchbox-input" type="text" placeholder="想要查找什么..."></div><a class="searchbox-close" href="javascript:;">×</a></div><div class="searchbox-body"></div></div></div><script src="/js/insight.js" defer></script><script>document.addEventListener('DOMContentLoaded', function () {
+            loadInsight({"contentUrl":"/content.json"}, {"hint":"想要查找什么...","untitled":"(无标题)","posts":"文章","pages":"页面","categories":"分类","tags":"标签"});
+        });</script><script src="https://cdn.jsdelivr.net/npm/pjax@0.2.8/pjax.js"></script><script type="text/javascript">var pjax = new Pjax({
+            elements: "a",//代表点击链接就更新
+            selectors: [  //代表要更新的节点
+                ".section",
+                "title"
+            ],
+            cache: true,
+            cacheBust:false
+        })
+
+        function loadBusuanzi(){
+        $.getScript("//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js", function () {});
+        }
+
+        // 开始 PJAX 执行的函数
+        document.addEventListener('pjax:send', function () {
+        });
+        
+        // PJAX 完成之后执行的函数，可以和上面的重载放在一起
+        document.addEventListener('pjax:complete', function () {
+            $(".section").css({opacity:1});
+            if(true){
+                $.getScript('/js/comment-issue-data.js',function(){loadIssueData('ae76bb3b78b0961c9ac4','115ae4b382976bfdf4cc82d28b8569ae94277218','Yweidong','blog_comment',false);});
+            }
+            if(false){
+                loadMathJax();
+            }
+            loadMainJs(jQuery, window.moment, window.ClipboardJS, window.IcarusThemeSettings);
+            loadBackTop();
+            loadBusuanzi();
+            if(typeof loadBanner == 'function'){
+                loadBanner();
+            }
+        });</script></body></html>
