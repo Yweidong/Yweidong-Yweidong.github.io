@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"><meta><title>undo log版本链与ReadView机制“ - 阿东IT博客</title><link rel="manifest" href="/manifest.json"><meta name="application-name" content="阿东IT博客"><meta name="msapplication-TileImage" content="https://cdn.jsdelivr.net/gh/removeif/removeif-demo@latest/img/favicon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="阿东IT博客"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta description="undo log 版本链 在 MySQL 的数据表中，存储着一行行的数据记录，对每行数据而言，不仅仅记录着我们定义的字段值，还会隐藏两个字段：row_trx_id 和 roll_pointer，前者表示更新本行数据的事务 id，后者表示的是回滚指针，它指向的是该行数据上一个版本的 undo log"><meta property="og:type" content="blog"><meta property="og:title" content="wei_tung"><meta property="og:url" content="https://yweidong.github.io/"><meta property="og:site_name" content="wei_tung"><meta property="og:description" content="undo log 版本链 在 MySQL 的数据表中，存储着一行行的数据记录，对每行数据而言，不仅仅记录着我们定义的字段值，还会隐藏两个字段：row_trx_id 和 roll_pointer，前者表示更新本行数据的事务 id，后者表示的是回滚指针，它指向的是该行数据上一个版本的 undo log"><meta property="og:locale" content="zh_CN"><meta property="og:image" content="https://yweidong.github.io/img/dong.png"><meta property="article:published_time" content="2022-01-04T03:56:52.000Z"><meta property="article:modified_time" content="2022-01-04T06:55:50.667Z"><meta property="article:author" content="wei_tung"><meta property="article:tag" content="mysql"><meta property="twitter:card" content="summary"><meta property="twitter:image" content="/img/dong.png"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","mainEntityOfPage":{"@type":"WebPage","@id":"https://yweidong.github.io/mysql/undo-log%E7%89%88%E6%9C%AC%E9%93%BE%E4%B8%8EReadView%E6%9C%BA%E5%88%B6%E2%80%9C.html"},"headline":"阿东IT博客","image":["https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202201041346638.png","https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202201041354893.png","https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202201041400114.png","https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202201041403412.png","https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202201041411035.png","https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202201041414919.png","https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202201041417572.png","https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202201041421828.png","https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202201041425640.png","https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202201041430411.png","https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202201041434667.png","https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202201041449400.png","https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202201041454401.png","https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202201041455217.png"],"datePublished":"2022-01-04T03:56:52.000Z","dateModified":"2022-01-04T06:55:50.667Z","author":{"@type":"Person","name":"wei_tung"},"description":"undo log 版本链 在 MySQL 的数据表中，存储着一行行的数据记录，对每行数据而言，不仅仅记录着我们定义的字段值，还会隐藏两个字段：row_trx_id 和 roll_pointer，前者表示更新本行数据的事务 id，后者表示的是回滚指针，它指向的是该行数据上一个版本的 undo log"}</script><link rel="canonical" href="https://yweidong.github.io/mysql/undo-log%E7%89%88%E6%9C%AC%E9%93%BE%E4%B8%8EReadView%E6%9C%BA%E5%88%B6%E2%80%9C.html"><link rel="icon" href="https://cdn.jsdelivr.net/gh/removeif/removeif-demo@latest/img/favicon.png"><meta name="referrer" content="no-referrer-when-downgrade"><link rel="stylesheet" href="https://cdnjs.loli.net/ajax/libs/font-awesome/5.12.0/css/all.min.css"><link rel="stylesheet" href="https://cdnjs.loli.net/ajax/libs/highlight.js/9.12.0/styles/atom-one-light.min.css"><link rel="stylesheet" href="https://fonts.loli.net/css2?family=Ubuntu:wght@400;600&amp;family=Source+Code+Pro"><link rel="stylesheet" href="/css/default.css"><link rel="stylesheet" href="https://cdnjs.loli.net/ajax/libs/font-awesome/5.12.0/css/all.min.css"><link rel="stylesheet" href="https://fonts.loli.net/css?family=Ubuntu:400,600|Source+Code+Pro|Monda:300,300italic,400,400italic,700,700italic|Roboto Slab:300,300italic,400,400italic,700,700italic|Microsoft YaHei:300,300italic,400,400italic,700,700italic|PT Mono:300,300italic,400,400italic,700,700italic&amp;amp;subset=latin,latin-ext|Inconsolata|Itim|Lobster.css"><script src="https://cdnjs.loli.net/ajax/libs/jquery/3.3.1/jquery.min.js"></script><script src="/js/globalUtils.js"></script><style>body>.footer,body>.navbar,body>.section{opacity:0}</style><!--!--><!--!--><script src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" defer></script><!--!--><link rel="stylesheet" href="https://cdnjs.loli.net/ajax/libs/lightgallery/1.6.8/css/lightgallery.min.css"><link rel="stylesheet" href="https://cdnjs.loli.net/ajax/libs/justifiedGallery/3.7.0/css/justifiedGallery.min.css"><!--!--><!--!--><script src="https://cdnjs.loli.net/ajax/libs/pace/1.0.2/pace.min.js"></script><meta name="generator" content="Hexo 5.2.0"></head><body class="is-3-column has-navbar-fixed-top"><nav class="navbar navbar-main is-fixed-top"><div class="container"><div class="navbar-brand justify-content-center"><a class="navbar-item navbar-logo" href="/"><img src="/img/dong.png" alt="阿东IT博客" height="28"></a></div><div class="navbar-menu"><div class="navbar-start"><a class="navbar-item" href="/">首页</a><a class="navbar-item" href="/archives">归档</a><a class="navbar-item" href="/categories">分类</a><a class="navbar-item" href="/tags">标签</a><a class="navbar-item" href="/message">留言</a></div><div class="navbar-end"><a class="navbar-item is-hidden-tablet catalogue" title="目录" href="javascript:;"><i class="fas fa-list-ul"></i></a><a class="navbar-item search" title="搜索" href="javascript:;"><i class="fas fa-search"></i></a><a class="navbar-item" id="night-nav" title="Night Mode" href="javascript:;"><i class="fas fa-moon" id="night-icon"></i></a></div></div></div></nav><script type="text/javascript" src="/js/theme-setting.js"></script><section class="section"><div class="container"><div class="columns"><div class="column order-2 column-main"><!--!--><div class="card"><article class="card-content article" role="article"><div class="article-meta size-small is-uppercase level is-mobile"><div class="level-left"><i class="far fa-calendar-plus"> </i>2022-01-04  <a class="commentCountImg" href="/mysql/undo-log%E7%89%88%E6%9C%AC%E9%93%BE%E4%B8%8EReadView%E6%9C%BA%E5%88%B6%E2%80%9C.html#comment-container"><span class="display-none-class">903d5b8f4f21486b34fbc73064f8f46f</span><i class="far fa-comment-dots"></i> <span class="commentCount" id="903d5b8f4f21486b34fbc73064f8f46f">99+</span>  </a><span class="level-item"><i class="far fa-clock"> </i>26 分钟  <i class="fas fa-pencil-alt"> </i>3.8 k</span><span class="level-item" id="busuanzi_container_page_pv"><span id="busuanzi_value_page_pv">0</span>次访问</span></div></div><h1 class="title is-3 is-size-4-mobile">undo log版本链与ReadView机制“</h1><div class="content"><h2 id="undo-log-版本链"><a href="#undo-log-版本链" class="headerlink" title="undo log 版本链"></a>undo log 版本链</h2><blockquote>
+<p>在 MySQL 的数据表中，存储着一行行的数据记录，对每行数据而言，不仅仅记录着我们定义的字段值，还会隐藏两个字段：<strong>row_trx_id 和 roll_pointer</strong>，前者表示更新本行数据的事务 id，后者表示的是回滚指针，它指向的是该行数据上一个版本的 undo log</p>
+</blockquote>
+<a id="more"></a>
+
+<blockquote>
+<p>当我们进行数据的新增、删除、修改操作时，会写 <strong>redo log</strong>(解决数据库宕机重启丢失数据的问题)和 <strong>binlog</strong>(主要用来做复制、数据备份等操作)，另外还会写 <strong>undo log，它是为了实现事务的回滚操作。</strong></p>
+<p>每一条 undo log 的具体内容可以自行网上查阅。我们只需要知道每行 undo log 日志会记录对应的<strong>事务 id</strong>，还会记录当前事务将数据修改后的<strong>最新值</strong>，以及指向当前行数据上一个版本的 undo log 的指针，也就是 <strong>roll_pointer</strong>。</p>
+</blockquote>
+<p>为了方便理解，每一行 undo log 可以简化为下图所示的结构</p>
+<img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202201041346638.png" alt="image-20220104134624584" style="zoom:50%;" />
+
+<blockquote>
+<p>举个例子，现在有一个事务 A，它的事务 id 为 10，向表中新插入了一条数据，数据记为 data_A，那么此时对应的 undo log 应该如下图所示：</p>
+</blockquote>
+<img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202201041354893.png" alt="image-20220104135401841" style="zoom:50%;" />
+
+<blockquote>
+<p>接着事务 B(trx_id=20)，将这行数据的值修改为 data_B，同样也会记录一条 undo log，如下图所示，这条 undo log 的 roll_pointer 指针会指向上一个数据版本的 undo log，也就是指向事务 A 写入的那一行 undo log。</p>
+</blockquote>
+<img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202201041400114.png" alt="image-20220104140046058" style="zoom:50%;" />
+
+<blockquote>
+<p>再接着，事务 C(trx_id=30)，将这行数据的值修改为 data_C，对应的示意图如下。</p>
+</blockquote>
+<img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202201041403412.png" alt="image-20220104140326352" style="zoom:50%;" />
+
+<blockquote>
+<p>只要有事务修改了这一行的数据，那么就会记录一条对应的 undo log，一条 undo log 对应这行数据的一个版本，当这行数据有多个版本时，就会有多条 undo log 日志，undo log 之间通过 roll_pointer 指针连接，这样就形成了一个 undo log 版本链</p>
+</blockquote>
+<h2 id="ReadView机制"><a href="#ReadView机制" class="headerlink" title="ReadView机制"></a>ReadView机制</h2><p>当事务在开始执行的时候，会给每个事务生成一个 ReadView。这个 ReadView 会记录 4 个非常重要的属性</p>
+<blockquote>
+<ol>
+<li><strong>creator_trx_id</strong>: 当前事务的 id；</li>
+<li><strong>m_ids</strong>: 当前系统中所有的活跃事务的 id，活跃事务指的是当前系统中开启了事务，但是还没有提交的事务；</li>
+<li><strong>min_trx_id</strong>: 当前系统中，所有活跃事务中事务 id 最小的那个事务，也就是 m_id 数组中最小的事务 id；</li>
+<li><strong>max_trx_id</strong>: 当前系统中事务的 id 值最大的那个事务 id 值再加 1，也就是系统中下一个要生成的事务 id。</li>
+</ol>
+</blockquote>
+<p><strong>ReadView 会根据这 4 个属性，再结合 undo log 版本链，来实现 MVCC 机制，决定让一个事务能读取到哪些数据，不能读取到哪些数据。</strong></p>
+<blockquote>
+<p>当一个事务读取某条数据时，就会按照如下规则来决定当前事务能读取到什么数据：</p>
+<ol>
+<li><p>如果当前数据的 row_trx_id 小于 min_trx_id，那么表示这条数据是在当前事务开启之前，其他的事务就已经将该条数据修改了并提交了事务(事务的 id 值是递增的)，所以当前事务能读取到。</p>
+</li>
+<li><p>如果当前数据的 row_trx_id <strong>大于等于 max_trx_id</strong>，那么表示在当前事务开启以后，过了一段时间，系统中有新的事务开启了，并且新的事务修改了这行数据的值并提交了事务，所以当前事务肯定是不能读取到的，因此这是后面的事务修改提交的数据。</p>
+</li>
+<li><p>如果当前数据的 row_trx_id 处于 min_trx_id 和 max_trx_id 的范围之间，又需要分两种情况：</p>
+<p>（a）row_trx_id 在 m_ids 数组中，那么当前事务不能读取到。为什么呢？row_trx_id 在 m_ids 数组中表示的是和当前事务在同一时刻开启的事务，修改了数据的值，并提交了事务，所以不能让当前事务读取到；</p>
+<p>（b) row_trx_id 不在 m_ids 数组中，那么当前事务能读取到。row_trx_id 不在 m_ids 数组中表示的是在当前事务开启之前，其他事务将数据修改后就已经提交了事务，所以当前事务能读取到。</p>
+</li>
+</ol>
+<p><strong>注意：如果 row_trx_id 等于当前事务的 id，那表示这条数据就是当前事务修改的，那当前事务肯定能读取到啊。</strong></p>
+</blockquote>
+<p>先假设表中有一条数据，它的 row_trx_id=10，roll_pointer 为 null，那么此时 undo log 版本链就是下图这样：</p>
+<p><img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202201041411035.png" alt="image-20220104141158981"></p>
+<blockquote>
+<p>假设现在有事务 A 和事务 B 并发执行，事务 A 的事务 id 为 20，事务 B 的事务 id 为 30。</p>
+<p>那么此时对于事务 A 而言，它的 ReadView 中，m_ids=[20,30]，min_trx_id=20，max_trx_id=31，creator_trx_id=20。</p>
+<p>对于事务 B 而言，它的 ReadView 中，m_ids=[20,30]，min_trx_id=20，max_trx_id=31，creator_trx_id=30。</p>
+<p>如果此时事务 A(trx_id=20)去读取数据，那么在 undo log 版本链中，数据最新版本的事务 id 为 10，<strong>这个值小于事务 A 的 ReadView 里 min_trx_id 的值</strong>，这表示这个数据的版本是事务 A 开启之前，其他事务提交的，因此事务 A 可以读取到，所以读取到的值是 data0。</p>
+</blockquote>
+<p><img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202201041414919.png" alt="image-20220104141449873"></p>
+<blockquote>
+<p>接着事务 B(trx_id=30)去修改数据，将数据修改为 data_B，先不提交事务。虽然不提交事务，但是仍然会记录一条 undo log，因此这条数据的 undo log 的版本链就有两条记录了，新的这条 undo log 的 roll_pointer 指针会指向前一条 undo log，示意图如下。</p>
+</blockquote>
+<p><img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202201041417572.png" alt="image-20220104141717504"></p>
+<blockquote>
+<p>接着事务 A(trx_id=20)去读取数据，那么在 undo log 版本链中，数据最新版本的事务 id 为 30，<strong>这个值处于事务 A 的 ReadView 里 min_trx_id 和 max_trx_id 之间</strong>，因此还需要判断这个数据版本的值是否在 m_ids 数组中，结果发现，30 确实在 m_ids 数组中，这表示这个版本的数据是和自己同一时刻启动的事务修改的，因此这个版本的数据，数据 A 读取不到。所以需要沿着 undo log 的版本链向前找，接着会找到该行数据的上一个版本，也就是 trx_id=10 的版本，由于这个版本的数据的 trx_id=10，小于 min_trx_id 的值，因此事务 A 能读取到该版本的值，即事务 A 读取到的值是 data0。</p>
+</blockquote>
+<p><img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202201041421828.png" alt="image-20220104142135762"></p>
+<blockquote>
+<p>紧接着事务 B 提交事务，那么<strong>此时系统中活跃的事务就只有 id 为 20 的事务了，也就是事务 A</strong>。那么此时事务 A 再去读取数据，它能读取到什么值呢？<strong>还是 data0</strong>。为什么呢？</p>
+<p>虽然系统中当前只剩下 id 为 20 的活跃事务了，<strong>但是事务 A 开启的瞬间，它已经生成了 ReadView ，后面即使有其他事务提交了，但是事务 A 的 ReadView 不会修改</strong>，也就是 m_ids 不会变，还是 m_ids=[20,30]，所以此时事务 A 去根据 undo log 版本链去读取数据时，还是不能读取最新版本的数据，只能往前找，最终还是只能读取到 data0。</p>
+<p>接着系统中，新开了一个事务 C，事务 id 为 40，它的 ReadView 中，m_ids=[20,40]，min_trx_id=20，max_trx_id=41，creator_trx_id=40。</p>
+<p>然后事务 C(trx_id=40)将数据修改为 data_C，并提交事务。此时 undo log 版本链就变成了如下图所示</p>
+</blockquote>
+<p><img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202201041425640.png" alt="image-20220104142542575"></p>
+<blockquote>
+<p>此时事务 A(trx_id=20)去读取数据，那么在 undo log 版本链中，数据最新版本的事务 id 为 40，<strong>由于此时事务 A 的 ReadView 中的 max_trx_id=31，40 大于 31，这表示当前版本的数据时在事务 A 之后提交的，因此对于事务 A 肯定是不能读取到的</strong>。所以此时事务 A 只能根据 roll_pointer 指针，沿着 undo log 版本向前找，结果发现上一个版本的 trx_id=30，自己还是不能读取到，所以再继续往前找，最终可以读取到 trx_id=10 的版本数据，因此最终事务 A 只能读取到 data0。</p>
+</blockquote>
+<p><img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202201041430411.png" alt="image-20220104143045344"></p>
+<blockquote>
+<p>接着事务 A(trx_id=20)去修改数据，将数据修改为 data_A，那么就会记录一条 undo log，示意图如下：</p>
+</blockquote>
+<p><img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202201041434667.png" alt="image-20220104143424615"></p>
+<blockquote>
+<p>然后事务 A(trx_id=20)再去读取数据，在 undo log 版本链中，数据最新版本的事务 id 为 20，事务 A 一对比，发现该版本的事务 id 与自己的事务 id 相等，这表示这个版本的数据就是自己修改的，既然是自己修改的，那就肯定能读取到了，因此此时读取到是 data_A。</p>
+</blockquote>
+<h2 id="如何通过MVCC来解决不可重复读和幻读"><a href="#如何通过MVCC来解决不可重复读和幻读" class="headerlink" title="如何通过MVCC来解决不可重复读和幻读"></a>如何通过MVCC来解决不可重复读和幻读</h2><h4 id="不可重复度"><a href="#不可重复度" class="headerlink" title="不可重复度"></a>不可重复度</h4><blockquote>
+<p>参照上面ReadView的机制讲解的例子，这里补充一下</p>
+<p><strong>事务 A 的 ReadView 是在发起第一次查询的时候创建的，当时系统中的活跃事务有 20 和 30 这两个 id，那么此时当事务 B 提交以后，事务 A 的 ReadView 的 m_ids 会变化吗？不会。因为是<code>可重复读隔离级别</code>下，对于读事务，只会在事务查询的第一次创建 ReadView，后面的查询不会再重新创建</strong></p>
+</blockquote>
+<h4 id="幻读"><a href="#幻读" class="headerlink" title="幻读"></a>幻读</h4><blockquote>
+<p>幻读特指后面的查询比前面的查询的记录条数多，看到了前面没看到的数据，就像产生幻觉一样，因此称之为幻读。</p>
+</blockquote>
+<h4 id="补-快照读与当前读"><a href="#补-快照读与当前读" class="headerlink" title="(补)快照读与当前读"></a>(补)快照读与当前读</h4><blockquote>
+<p>在解释 MySQL 的可重复读隔离级别解决了幻读问题之前，我们先来看两个定义：<strong>「快照读与当前读」</strong>。</p>
+<p>我们知道，在事务开启的时候，会基于当前系统中数据库的数据，为每个事务生成一个快照，也叫做 ReadView，后面这个事务所有的读操作都是基于这个 ReadView 来读取数据，这种读称之为快照读。<strong>「我们在实际的工作中，所使用的 SQL 查询语句基本都是快照读。」</strong></p>
+<p>通过前面介绍的 undo log 版本链，我们知道，每行数据可能会有多个版本，如果每次读取时，<strong>「我们都强制性的读取最新版本的数据，这种读称之为当前读，也就是读取最新的数据」</strong>。什么样的 SQL 查询语句叫做当前读呢？例如在 select 语句后面加上<strong>「for update 或者 lock in share mode」</strong>等</p>
+</blockquote>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 加上排他锁</span></span><br><span class="line"><span class="keyword">select</span> * <span class="keyword">from</span> t <span class="keyword">for</span> <span class="keyword">update</span>;</span><br><span class="line"><span class="comment"># 加上共享锁</span></span><br><span class="line"><span class="keyword">select</span> * <span class="keyword">from</span> t <span class="keyword">for</span> <span class="keyword">lock</span> <span class="keyword">in</span> <span class="keyword">share</span> <span class="keyword">mode</span>;</span><br></pre></td></tr></table></figure>
+
+<p>可以发现，当前读的这两种写法，在查询过程中都是需要加锁的，因此它们能读取到最新的数据。</p>
+<blockquote>
+<p><strong>在 MySQL 可重复读隔离级别下，幻读问题确实不存在。但是 MVCC 机制解决的是快照读的幻读问题，并不能解决当前读的幻读问题。当前读的幻读问题是通过间隙锁解决的</strong></p>
+</blockquote>
+<blockquote>
+<p>以下是基于快照读来进行解读</p>
+</blockquote>
+<p>假设现在表 t 中只有一条数据，数据内容中，主键 id=1，隐藏的 trx_id=10，它的 undo log 如下图所示</p>
+<p><img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202201041449400.png" alt="image-20220104144935338"></p>
+<blockquote>
+<p>假设现在有事务 A 和事务 B 并发执行，事务 A 的事务 id 为 20，事务 B 的事务 id 为 30。</p>
+<p>现在事务 A 开始第一次查询数据，查询的 SQL 语句如下。</p>
+</blockquote>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">select</span> * <span class="keyword">from</span> <span class="keyword">where</span> <span class="keyword">id</span> &gt;= <span class="number">1</span>;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>在开始查询之前，MySQL 会为事务 A 产生一个 ReadView，此时 ReadView 的内容如下：m_ids=[20,30]，min_trx_id=20，max_trx_id=31，creator_trx_id=20。</p>
+<p>由于此时表 t 中只有一条数据，且符合 where id&gt;=1 条件，因此会查询出来。<strong>然后通过 ReadView 机制，发现该行数据的 row_id=10，小于事务 A 的 ReadView 里 min_trx_id，这表示这条数据是事务 A 开启之前，其他事务就已经提交了的数据，因此事务 A 可以读取到。</strong></p>
+<p>接着事务 B(trx_id=30)，往表 t 中新插入两条数据，SQL 语句如下。</p>
+</blockquote>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">insert</span> <span class="keyword">into</span> t(<span class="keyword">id</span>,<span class="keyword">name</span>) <span class="keyword">values</span>(<span class="number">2</span>,<span class="string">&#x27;小明&#x27;</span>);</span><br><span class="line"><span class="keyword">insert</span> <span class="keyword">into</span> t(<span class="keyword">id</span>,<span class="keyword">name</span>) <span class="keyword">values</span>(<span class="number">3</span>,<span class="string">&#x27;小红&#x27;</span>);</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>然后事务提交事务，那么此时表 t 中就有三条数据了，对应的 undo 如下图所示：</p>
+</blockquote>
+<p><img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202201041454401.png" alt="image-20220104145410342"></p>
+<blockquote>
+<p>接着事务 A 开启第二次查询，根据可重复读隔离级别的规则，此时事务 A 并不会再重新生成 ReadView。此时表 t 中的 3 条数据都满足 where id&gt;=1 的条件，因此会先查出来，然后再根据 ReadView 机制，判断每条数据是不是都可以被事务 A 看到。</p>
+<ol>
+<li>首先 id=1 的这条数据，前面已经说过了，可以被事务 A 看到。</li>
+<li>然后是 id=2 的数据，它的 trx_id=30，此时事务 A 发现，这个值处于 min_trx_id 和 max_trx_id 之间，因此还需要再判断 30 是否处于 m_ids 数组内。由于事务 A 的 m_ids=[20,30]，因此在数组内，这表示 id=2 的这条数据是与事务 A 在同一时刻启动的其他事务提交的，所以这条数据不能让事务 A 看到。</li>
+<li>同理，id=3 的这条数据，trx_id 也为 30，因此也不能被事务 A 看见。</li>
+</ol>
+</blockquote>
+<p><img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202201041455217.png" alt="image-20220104145524162"></p>
+<blockquote>
+<p><strong>结论：最终事务 A 的第二次查询，只能查询出 id=1 的这条数据。这和事务 A 的第一次查询的结果是一样的，因此没有出现幻读现象，所以说在 MySQL 的可重复读隔离级别下，不存在幻读问题。</strong></p>
+</blockquote>
+</div><div class="article-licensing box"><div class="licensing-title"><p>undo log版本链与ReadView机制“</p><p><a href="https://yweidong.github.io/mysql/undo-log版本链与ReadView机制“.html">https://yweidong.github.io/mysql/undo-log版本链与ReadView机制“.html</a></p></div><div class="licensing-meta level is-mobile"><div class="level-left"><div class="level-item is-narrow"><div><h6>作者</h6><a href="https://Yweidong.github.io"><p>wei_tung</p></a></div></div><div class="level-item is-narrow"><div><h6>发布于</h6><p>2022-01-04</p></div></div><div class="level-item is-narrow"><div><h6>更新于</h6><p>2022-01-04</p></div></div><div class="level-item is-narrow"><div><h6>许可协议</h6><p><a class="icon" rel="noopener" target="_blank" title="Creative Commons" href="https://creativecommons.org/"><i class="fab fa-creative-commons"></i></a><a class="icon" rel="noopener" target="_blank" title="Attribution" href="https://creativecommons.org/licenses/by/4.0/"><i class="fab fa-creative-commons-by"></i></a><a class="icon" rel="noopener" target="_blank" title="Noncommercial" href="https://creativecommons.org/licenses/by-nc/4.0/"><i class="fab fa-creative-commons-nc"></i></a></p></div></div></div></div></div><div class="recommend-area"><div class="recommend-post"><span class="is-size-6 has-text-grey has-mr-7"># 相关文章</span><br><span>  1.<a class="is-size-6" href="/mysql/%E6%95%B0%E6%8D%AE%E5%BA%93%E4%B8%AD%E4%BA%8B%E5%8A%A1%E7%9A%84%E5%87%A0%E7%A7%8D%E9%9A%94%E7%A6%BB%E7%BA%A7%E5%88%AB.html" target="_blank">数据库中事务的几种隔离级别</a><br></span><span>  2.<a class="is-size-6" href="/mysql/mysql%E6%97%A5%E5%BF%97%E7%B3%BB%E7%BB%9F.html" target="_blank">mysql日志系统</a><br></span></div></div><link rel="stylesheet" href="https://cdnjs.loli.net/ajax/libs/social-share.js/1.0.16/css/share.min.css"><div class="social-share"></div><script src="https://cdnjs.loli.net/ajax/libs/social-share.js/1.0.16/js/social-share.min.js"></script></article></div><div class="card"><div class="card-content"><h3 class="menu-label has-text-centered">喜欢这篇文章？打赏一下作者吧</h3><div class="buttons is-centered"><a class="button donate" data-type="alipay"><span class="icon is-small"><i class="fab fa-alipay"></i></span><span>支付宝</span><span class="qrcode"><img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291611846.png" alt="支付宝"></span></a><a class="button donate" data-type="wechat"><span class="icon is-small"><i class="fab fa-weixin"></i></span><span>微信</span><span class="qrcode"><img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291609037.png" alt="微信"></span></a></div></div></div><nav class="post-navigation mt-4 level is-mobile"><div class="level-end"><a class="article-nav-next level level-item link-muted" href="/mysql/%E6%95%B0%E6%8D%AE%E5%BA%93%E4%B8%AD%E4%BA%8B%E5%8A%A1%E7%9A%84%E5%87%A0%E7%A7%8D%E9%9A%94%E7%A6%BB%E7%BA%A7%E5%88%AB.html"><span class="level-item">数据库中事务的几种隔离级别</span><i class="level-item fas fa-chevron-right"></i></a></div></nav><!--!--><div class="card"><div class="card-content"><div class="title is-5">评论</div><div id="comment-container"></div><link rel="stylesheet" href="https://cdnjs.loli.net/ajax/libs/gitalk/1.6.0/gitalk.css"><script> $.getScript('/js/gitalk.min.js', function () { 
+            var gitalk = new Gitalk({
+            language:'zh-CN',
+            id: '903d5b8f4f21486b34fbc73064f8f46f',
+            repo: 'blog_comment',
+            owner: 'Yweidong',
+            clientID: 'ae76bb3b78b0961c9ac4',
+            clientSecret: '115ae4b382976bfdf4cc82d28b8569ae94277218',
+            admin: ["Yweidong"],
+            createIssueManually: true,
+            distractionFreeMode: false,
+            perPage: 10,
+            pagerDirection: 'last',
+            proxy: 'https://cors-anywhere.azm.workers.dev/https://github.com/login/oauth/access_token',
+            
+            enableHotKey: true,
+            isLocked: false
+        })
+        gitalk.render('comment-container')});</script></div></div></div><div class="column column-left is-4-tablet is-4-desktop is-3-widescreen  order-1 is-sticky"><div class="card widget" id="toc" data-type="toc"><div class="card-content"><div class="menu"><h3 class="menu-label">目录</h3><ul class="menu-list"><li><a class="is-flex is-mobile" href="#undo-log-版本链"><span>undo log 版本链</span></a></li><li><a class="is-flex is-mobile" href="#ReadView机制"><span>ReadView机制</span></a></li><li><a class="is-flex is-mobile" href="#如何通过MVCC来解决不可重复读和幻读"><span>如何通过MVCC来解决不可重复读和幻读</span></a><ul class="menu-list"><ul class="menu-list"><li><a class="is-flex is-mobile" href="#不可重复度"><span>不可重复度</span></a></li><li><a class="is-flex is-mobile" href="#幻读"><span>幻读</span></a></li><li><a class="is-flex is-mobile" href="#补-快照读与当前读"><span>(补)快照读与当前读</span></a></li></ul></ul></li></ul></div></div><style>.menu-list > li > a.is-active + .menu-list { display: block; }.menu-list > li > a + .menu-list { display: none; }</style><script src="/js/toc.js" defer></script></div><div class="card widget" data-type="profile"><div class="card-content"><nav class="level"><div class="level-item has-text-centered flex-shrink-1"><div><figure class="image is-128x128 mx-auto mb-2"><img class="avatar is-rounded" src="https://cdn.jsdelivr.net/gh/removeif/removeif-demo@latest/img/avatar.png" alt="wei_tung"></figure><p class="title is-size-4 is-block" style="line-height:inherit;">wei_tung</p><p class="is-size-6 is-block">尚未执佩剑，转眼即江湖</p><p class="is-size-6 is-flex justify-content-center"><i class="fas fa-map-marker-alt mr-1"></i><span>JiangSu,China</span></p></div></div></nav><nav class="level is-mobile"><div class="level-item has-text-centered is-marginless"><div><p class="heading">文章</p><a href="/archives"><p class="title">5</p></a></div></div><div class="level-item has-text-centered is-marginless"><div><p class="heading">分类</p><a href="/categories"><p class="title">5</p></a></div></div><div class="level-item has-text-centered is-marginless"><div><p class="heading">标签</p><a href="/tags"><p class="title">5</p></a></div></div></nav><div class="level"><a class="level-item button is-primary is-rounded" href="https://github.com/Yweidong" target="_blank" rel="noopener">关注我</a></div><div class="level is-mobile"><a class="level-item button is-transparent is-marginless" target="_blank" rel="noopener" title="Github" href="https://github.com/Yweidong"><i class="fab fa-github"></i></a><a class="level-item button is-transparent is-marginless" target="_blank" rel="noopener" title="Email" href="mailto:1371690483@qq.com"><i class="fa fa-envelope"></i></a><a class="level-item button is-transparent is-marginless" target="_blank" rel="noopener" title="Next" href="https://github.com/Yweidong/Yweidong.github.io"><i class="fab fa-dribbble"></i></a><a class="level-item button is-transparent is-marginless" target="_blank" rel="noopener" title="RSS" href="/atom.xml"><i class="fas fa-rss"></i></a></div><div><hr><p id="hitokoto">:D 一言句子获取中...</p><script type="text/javascript" defer>function getYiyan(){
+                                $.getJSON("https://v1.hitokoto.cn/", function (data) {
+                                if(data){
+                                    $('#hitokoto').html("");
+                                    $('#hitokoto').append("<strong style='color: #3273dc;'>"+data.hitokoto+"</strong>"+
+                                    "<p>"+"来源《"+data.from+"》</p><p>提供者-"+data.creator+"</p>");
+                                }});}
+                                $(function (){getYiyan();$('#hitokoto').click(function(){getYiyan();})});</script></div></div></div><div class="card widget" data-type="links"><div class="card-content"><div class="menu"><h3 class="menu-label">链接</h3><ul class="menu-list"><li><a class="level is-mobile" href="https://hexo.io" target="_blank" rel="noopener"><span class="level-left"><span class="level-item">Hexo</span></span><span class="level-right"><span class="level-item tag">hexo.io</span></span></a></li><li><a class="level is-mobile" href="https://bulma.io" target="_blank" rel="noopener"><span class="level-left"><span class="level-item">Bulma</span></span><span class="level-right"><span class="level-item tag">bulma.io</span></span></a></li></ul></div></div></div><div class="card widget"><div class="card-content"><h3 class="menu-label">最新评论</h3><span class="body_hot_comment">加载中，最新评论有1分钟缓存...</span></div></div><div class="card widget"><div class="card-content"><h3 class="menu-label">最新文章</h3><article class="media"><div class="media-content"><p class="date"><time dateTime="2022-01-04T03:56:52.000Z">2022-01-04</time></p><p class="title"><a href="/mysql/undo-log%E7%89%88%E6%9C%AC%E9%93%BE%E4%B8%8EReadView%E6%9C%BA%E5%88%B6%E2%80%9C.html">undo log版本链与ReadView机制“</a></p><p class="categories"><a href="/categories/mysql/">mysql</a></p></div></article><article class="media"><div class="media-content"><p class="date"><time dateTime="2022-01-04T03:43:43.000Z">2022-01-04</time></p><p class="title"><a href="/mysql/%E6%95%B0%E6%8D%AE%E5%BA%93%E4%B8%AD%E4%BA%8B%E5%8A%A1%E7%9A%84%E5%87%A0%E7%A7%8D%E9%9A%94%E7%A6%BB%E7%BA%A7%E5%88%AB.html">数据库中事务的几种隔离级别</a></p><p class="categories"><a href="/categories/mysql/">mysql</a></p></div></article><article class="media"><div class="media-content"><p class="date"><time dateTime="2022-01-04T02:16:33.000Z">2022-01-04</time></p><p class="title"><a href="/mysql/mysql%E6%97%A5%E5%BF%97%E7%B3%BB%E7%BB%9F.html">mysql日志系统</a></p><p class="categories"><a href="/categories/mysql/">mysql</a></p></div></article><article class="media"><div class="media-content"><p class="date"><time dateTime="2021-12-30T02:08:15.000Z">2021-12-30</time></p><p class="title"><a href="/%E5%85%AB%E8%82%A1%E6%96%87/JVM-%E5%8D%B7.html">JVM 卷</a></p><p class="categories"><a href="/categories/%E5%85%AB%E8%82%A1%E6%96%87/">八股文</a> / <a href="/categories/%E5%85%AB%E8%82%A1%E6%96%87/JVM/">JVM</a></p></div></article><article class="media"><div class="media-content"><p class="date"><time dateTime="2021-12-29T02:22:31.000Z">2021-12-29</time></p><p class="title"><a href="/netty/Netty%E7%9A%84%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84%E8%84%89%E7%BB%9C.html">Netty的整体架构脉络</a></p><p class="categories"><a href="/categories/Netty/">Netty</a> / <a href="/categories/Netty/Netty%E6%BA%90%E7%A0%81%E5%89%96%E6%9E%90/">Netty源码剖析</a></p></div></article></div></div><div class="card widget"><div class="card-content"><div class="menu"><h3 class="menu-label">分类</h3><ul class="menu-list"><li><a class="level is-mobile is-marginless" href="/categories/Netty/"><span class="level-start"><span class="level-item">Netty</span></span><span class="level-end"><span class="level-item tag">1</span></span></a><ul class="mr-0"><li><a class="level is-mobile is-marginless" href="/categories/Netty/Netty%E6%BA%90%E7%A0%81%E5%89%96%E6%9E%90/"><span class="level-start"><span class="level-item">Netty源码剖析</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li></ul></li><li><a class="level is-mobile is-marginless" href="/categories/mysql/"><span class="level-start"><span class="level-item">mysql</span></span><span class="level-end"><span class="level-item tag">3</span></span></a></li><li><a class="level is-mobile is-marginless" href="/categories/%E5%85%AB%E8%82%A1%E6%96%87/"><span class="level-start"><span class="level-item">八股文</span></span><span class="level-end"><span class="level-item tag">1</span></span></a><ul class="mr-0"><li><a class="level is-mobile is-marginless" href="/categories/%E5%85%AB%E8%82%A1%E6%96%87/JVM/"><span class="level-start"><span class="level-item">JVM</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li></ul></li></ul></div></div></div><div class="card widget"><div class="card-content"><div class="menu"><h3 class="menu-label">归档</h3><ul class="menu-list"><li><a class="level is-mobile is-marginless" href="/archives/2022/01/"><span class="level-start"><span class="level-item">一月 2022</span></span><span class="level-end"><span class="level-item tag">3</span></span></a></li><li><a class="level is-mobile is-marginless" href="/archives/2021/12/"><span class="level-start"><span class="level-item">十二月 2021</span></span><span class="level-end"><span class="level-item tag">2</span></span></a></li></ul></div></div></div><div class="card widget"><div class="card-content"><div class="menu"><h3 class="menu-label">标签</h3><div class="field is-grouped is-grouped-multiline"><div class="control"><a class="tags has-addons" href="/tags/mysql/"><span class="tag">mysql</span><span class="tag is-grey-lightest">3</span></a></div><div class="control"><a class="tags has-addons" href="/tags/%E5%85%AB%E8%82%A1%E6%96%87/"><span class="tag">八股文</span><span class="tag is-grey-lightest">3</span></a></div><div class="control"><a class="tags has-addons" href="/tags/JAVA/"><span class="tag">JAVA</span><span class="tag is-grey-lightest">1</span></a></div><div class="control"><a class="tags has-addons" href="/tags/JVM/"><span class="tag">JVM</span><span class="tag is-grey-lightest">1</span></a></div><div class="control"><a class="tags has-addons" href="/tags/Netty/"><span class="tag">Netty</span><span class="tag is-grey-lightest">1</span></a></div></div></div></div></div><div class="card widget" data-type="subscribe-email"><div class="card-content"><div class="menu"><h3 class="menu-label">订阅更新</h3><form action="https://feedburner.google.com/fb/a/mailverify" method="post" target="popupwindow" onsubmit="window.open(&#039;https://feedburner.google.com/fb/a/mailverify?uri=&#039;,&#039;popupwindow&#039;,&#039;scrollbars=yes,width=550,height=520&#039;);return true"><input type="hidden" value="" name="uri"><input type="hidden" name="loc" value="en_US"><div class="field has-addons"><div class="control has-icons-left is-expanded"><input class="input" name="email" type="email" placeholder="Email"><span class="icon is-small is-left"><i class="fas fa-envelope"></i></span></div><div class="control"><input class="button" type="submit" value="订阅"></div></div></form></div></div></div><!--!--><div class="column-right-shadow is-hidden-widescreen"></div></div></div></div></section><footer class="footer"><div class="container"><div class="level"><div class="level-start"><a class="footer-logo is-block mb-2" href="/"><img src="/img/dong.png" alt="阿东IT博客" height="28"></a><p class="size-small"><span>&copy; 2022 wei_tung</span>  Powered by <a href="https://hexo.io/" target="_blank">Hexo</a> &amp; <a href="https://github.com/ppoffice/hexo-theme-icarus" target="_blank">Icarus</a> &amp; <a href="https://github.com/removeif/hexo-theme-amazing" target="_blank">Amazing</a> <br><span>© 版权说明：[本网站所有内容均收集于互联网或自己创作,<br />&nbsp;&nbsp;&nbsp;&nbsp;方便于网友与自己学习交流，如有侵权，请<a href="/message" target="_blank">留言</a>，立即处理]<br /></span><div class="size-small"><span>❤️感谢 <strong><span id="busuanzi_value_site_uv">99+</span></strong> 小伙伴的 <strong><span id="busuanzi_value_site_pv">99+</span></strong> 次光临！❤️</span></div></p></div><div class="level-end"><div class="field has-addons"><p class="control"><a class="button is-transparent is-large" target="_blank" rel="noopener" title="Creative Commons" href="https://creativecommons.org/"><i class="fab fa-creative-commons"></i></a></p><p class="control"><a class="button is-transparent is-large" target="_blank" rel="noopener" title="Attribution 4.0 International" href="https://creativecommons.org/licenses/by/4.0/"><i class="fab fa-creative-commons-by"></i></a></p></div></div></div></div></footer><script src="https://cdnjs.loli.net/ajax/libs/moment.js/2.22.2/moment-with-locales.min.js"></script><script src="https://cdnjs.loli.net/ajax/libs/clipboard.js/2.0.4/clipboard.min.js" async></script><script>moment.locale("zh-CN");</script><script>var IcarusThemeSettings = {
+            article: {
+                highlight: {
+                    clipboard: true,
+                    fold: 'unfolded'
+                }
+            }
+        };</script><script src="/js/column.js"></script><script src="/js/animation.js"></script><a id="back-to-top" title="回到顶端" href="javascript:;"><i class="fas fa-chevron-up"></i></a><script src="/js/back_to_top.js" defer></script><!--!--><!--!--><!--!--><script src="https://cdnjs.loli.net/ajax/libs/lightgallery/1.6.8/js/lightgallery.min.js" defer></script><script src="https://cdnjs.loli.net/ajax/libs/justifiedGallery/3.7.0/js/jquery.justifiedGallery.min.js" defer></script><script>window.addEventListener("load", () => {
+            if (typeof $.fn.lightGallery === 'function') {
+                $('.article').lightGallery({ selector: '.gallery-item' });
+            }
+            if (typeof $.fn.justifiedGallery === 'function') {
+                if ($('.justified-gallery > p > .gallery-item').length) {
+                    $('.justified-gallery > p > .gallery-item').unwrap();
+                }
+                $('.justified-gallery').justifiedGallery();
+            }
+        });</script><!--!--><!--!--><!--!--><script src="/js/main.js" defer></script><script>$.getScript('/js/comment-issue-data.js',function(){loadIssueData('ae76bb3b78b0961c9ac4','115ae4b382976bfdf4cc82d28b8569ae94277218','Yweidong','blog_comment',false);})</script><div class="searchbox"><div class="searchbox-container"><div class="searchbox-header"><div class="searchbox-input-container"><input class="searchbox-input" type="text" placeholder="想要查找什么..."></div><a class="searchbox-close" href="javascript:;">×</a></div><div class="searchbox-body"></div></div></div><script src="/js/insight.js" defer></script><script>document.addEventListener('DOMContentLoaded', function () {
+            loadInsight({"contentUrl":"/content.json"}, {"hint":"想要查找什么...","untitled":"(无标题)","posts":"文章","pages":"页面","categories":"分类","tags":"标签"});
+        });</script><script src="https://cdn.jsdelivr.net/npm/pjax@0.2.8/pjax.js"></script><script type="text/javascript">var pjax = new Pjax({
+            elements: "a",//代表点击链接就更新
+            selectors: [  //代表要更新的节点
+                ".section",
+                "title"
+            ],
+            cache: true,
+            cacheBust:false
+        })
+
+        function loadBusuanzi(){
+        $.getScript("//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js", function () {});
+        }
+
+        // 开始 PJAX 执行的函数
+        document.addEventListener('pjax:send', function () {
+        });
+        
+        // PJAX 完成之后执行的函数，可以和上面的重载放在一起
+        document.addEventListener('pjax:complete', function () {
+            $(".section").css({opacity:1});
+            if(true){
+                $.getScript('/js/comment-issue-data.js',function(){loadIssueData('ae76bb3b78b0961c9ac4','115ae4b382976bfdf4cc82d28b8569ae94277218','Yweidong','blog_comment',false);});
+            }
+            if(false){
+                loadMathJax();
+            }
+            loadMainJs(jQuery, window.moment, window.ClipboardJS, window.IcarusThemeSettings);
+            loadBackTop();
+            loadBusuanzi();
+            if(typeof loadBanner == 'function'){
+                loadBanner();
+            }
+        });</script></body></html>
