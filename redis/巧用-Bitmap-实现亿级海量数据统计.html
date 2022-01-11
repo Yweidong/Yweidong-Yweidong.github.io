@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"><meta><title>巧用 Bitmap 实现亿级海量数据统计 - 阿东IT博客</title><link rel="manifest" href="/manifest.json"><meta name="application-name" content="阿东IT博客"><meta name="msapplication-TileImage" content="https://cdn.jsdelivr.net/gh/removeif/removeif-demo@latest/img/favicon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="阿东IT博客"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta description="在移动应用的业务场景中，我们需要保存这样的信息：一个 key 关联了一个数据集合。 常见的场景如下：  给一个 userId ，判断用户登陆状态； 显示用户某个月的签到次数和首次签到时间； 两亿用户最近 7 天的签到情况，统计 7 天内连续签到的用户总数；  通常情况下，我们面临的用户数量以及访问量都是巨大的，比如百万、千万级别的用户数量，或者千万级别、甚至亿级别的访问信息。 所以，我们必须要选择"><meta property="og:type" content="blog"><meta property="og:title" content="wei_tung"><meta property="og:url" content="https://yweidong.github.io/"><meta property="og:site_name" content="wei_tung"><meta property="og:description" content="在移动应用的业务场景中，我们需要保存这样的信息：一个 key 关联了一个数据集合。 常见的场景如下：  给一个 userId ，判断用户登陆状态； 显示用户某个月的签到次数和首次签到时间； 两亿用户最近 7 天的签到情况，统计 7 天内连续签到的用户总数；  通常情况下，我们面临的用户数量以及访问量都是巨大的，比如百万、千万级别的用户数量，或者千万级别、甚至亿级别的访问信息。 所以，我们必须要选择"><meta property="og:locale" content="zh_CN"><meta property="og:image" content="https://yweidong.github.io/img/dong.png"><meta property="article:published_time" content="2022-01-11T06:46:12.000Z"><meta property="article:modified_time" content="2022-01-11T07:27:53.837Z"><meta property="article:author" content="wei_tung"><meta property="article:tag" content="redis"><meta property="twitter:card" content="summary"><meta property="twitter:image" content="/img/dong.png"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","mainEntityOfPage":{"@type":"WebPage","@id":"https://yweidong.github.io/redis/%E5%B7%A7%E7%94%A8-Bitmap-%E5%AE%9E%E7%8E%B0%E4%BA%BF%E7%BA%A7%E6%B5%B7%E9%87%8F%E6%95%B0%E6%8D%AE%E7%BB%9F%E8%AE%A1.html"},"headline":"阿东IT博客","image":["https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202201111504331.png","https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202201111506294.png"],"datePublished":"2022-01-11T06:46:12.000Z","dateModified":"2022-01-11T07:27:53.837Z","author":{"@type":"Person","name":"wei_tung"},"description":"在移动应用的业务场景中，我们需要保存这样的信息：一个 key 关联了一个数据集合。 常见的场景如下：  给一个 userId ，判断用户登陆状态； 显示用户某个月的签到次数和首次签到时间； 两亿用户最近 7 天的签到情况，统计 7 天内连续签到的用户总数；  通常情况下，我们面临的用户数量以及访问量都是巨大的，比如百万、千万级别的用户数量，或者千万级别、甚至亿级别的访问信息。 所以，我们必须要选择"}</script><link rel="canonical" href="https://yweidong.github.io/redis/%E5%B7%A7%E7%94%A8-Bitmap-%E5%AE%9E%E7%8E%B0%E4%BA%BF%E7%BA%A7%E6%B5%B7%E9%87%8F%E6%95%B0%E6%8D%AE%E7%BB%9F%E8%AE%A1.html"><link rel="icon" href="https://cdn.jsdelivr.net/gh/removeif/removeif-demo@latest/img/favicon.png"><meta name="referrer" content="no-referrer-when-downgrade"><link rel="stylesheet" href="https://cdnjs.loli.net/ajax/libs/font-awesome/5.12.0/css/all.min.css"><link rel="stylesheet" href="https://cdnjs.loli.net/ajax/libs/highlight.js/9.12.0/styles/atom-one-light.min.css"><link rel="stylesheet" href="https://fonts.loli.net/css2?family=Ubuntu:wght@400;600&amp;family=Source+Code+Pro"><link rel="stylesheet" href="/css/default.css"><link rel="stylesheet" href="https://cdnjs.loli.net/ajax/libs/font-awesome/5.12.0/css/all.min.css"><link rel="stylesheet" href="https://fonts.loli.net/css?family=Ubuntu:400,600|Source+Code+Pro|Monda:300,300italic,400,400italic,700,700italic|Roboto Slab:300,300italic,400,400italic,700,700italic|Microsoft YaHei:300,300italic,400,400italic,700,700italic|PT Mono:300,300italic,400,400italic,700,700italic&amp;amp;subset=latin,latin-ext|Inconsolata|Itim|Lobster.css"><script src="https://cdnjs.loli.net/ajax/libs/jquery/3.3.1/jquery.min.js"></script><script src="/js/globalUtils.js"></script><style>body>.footer,body>.navbar,body>.section{opacity:0}</style><!--!--><!--!--><script src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" defer></script><!--!--><link rel="stylesheet" href="https://cdnjs.loli.net/ajax/libs/lightgallery/1.6.8/css/lightgallery.min.css"><link rel="stylesheet" href="https://cdnjs.loli.net/ajax/libs/justifiedGallery/3.7.0/css/justifiedGallery.min.css"><!--!--><!--!--><script src="https://cdnjs.loli.net/ajax/libs/pace/1.0.2/pace.min.js"></script><meta name="generator" content="Hexo 5.2.0"></head><body class="is-3-column has-navbar-fixed-top"><nav class="navbar navbar-main is-fixed-top"><div class="container"><div class="navbar-brand justify-content-center"><a class="navbar-item navbar-logo" href="/"><img src="/img/dong.png" alt="阿东IT博客" height="28"></a></div><div class="navbar-menu"><div class="navbar-start"><a class="navbar-item" href="/">首页</a><a class="navbar-item" href="/archives">归档</a><a class="navbar-item" href="/categories">分类</a><a class="navbar-item" href="/tags">标签</a><a class="navbar-item" href="/message">留言</a></div><div class="navbar-end"><a class="navbar-item is-hidden-tablet catalogue" title="目录" href="javascript:;"><i class="fas fa-list-ul"></i></a><a class="navbar-item search" title="搜索" href="javascript:;"><i class="fas fa-search"></i></a><a class="navbar-item" id="night-nav" title="Night Mode" href="javascript:;"><i class="fas fa-moon" id="night-icon"></i></a></div></div></div></nav><script type="text/javascript" src="/js/theme-setting.js"></script><section class="section"><div class="container"><div class="columns"><div class="column order-2 column-main"><!--!--><div class="card"><article class="card-content article" role="article"><div class="article-meta size-small is-uppercase level is-mobile"><div class="level-left"><i class="far fa-calendar-plus"> </i>2022-01-11  <a class="commentCountImg" href="/redis/%E5%B7%A7%E7%94%A8-Bitmap-%E5%AE%9E%E7%8E%B0%E4%BA%BF%E7%BA%A7%E6%B5%B7%E9%87%8F%E6%95%B0%E6%8D%AE%E7%BB%9F%E8%AE%A1.html#comment-container"><span class="display-none-class">8590008c53033a38b7c27de51de70dbe</span><i class="far fa-comment-dots"></i> <span class="commentCount" id="8590008c53033a38b7c27de51de70dbe">99+</span>  </a><span class="level-item"><i class="far fa-clock"> </i>14 分钟  <i class="fas fa-pencil-alt"> </i>2.1 k</span><span class="level-item" id="busuanzi_container_page_pv"><span id="busuanzi_value_page_pv">0</span>次访问</span></div></div><h1 class="title is-3 is-size-4-mobile">巧用 Bitmap 实现亿级海量数据统计</h1><div class="content"><p>在移动应用的业务场景中，我们需要保存这样的信息：一个 key 关联了一个数据集合。</p>
+<p>常见的场景如下：</p>
+<ul>
+<li>给一个 userId ，判断用户登陆状态；</li>
+<li>显示用户某个月的签到次数和首次签到时间；</li>
+<li>两亿用户最近 7 天的签到情况，统计 7 天内连续签到的用户总数；</li>
+</ul>
+<p>通常情况下，我们面临的用户数量以及访问量都是巨大的，比如百万、千万级别的用户数量，或者千万级别、甚至亿级别的访问信息。</p>
+<p>所以，我们必须要选择能够非常高效地统计大量数据（例如亿级）的集合类型。</p>
+<a id="more"></a>
+
+<p><strong>如何选择合适的数据集合，我们首先要了解常用的统计模式，并运用合理的数据类型来解决实际问题。</strong></p>
+<blockquote>
+<ol>
+<li>二值状态统计；(本文介绍)</li>
+<li>聚合统计；</li>
+<li>排序统计；</li>
+<li>基数统计。</li>
+</ol>
+</blockquote>
+<blockquote>
+<p>指令可以通过在线 Redis 客户端运行调试，地址：<a target="_blank" rel="noopener" href="https://try.redis.io/">https://try.redis.io/</a></p>
+</blockquote>
+<h2 id="二值状态统计"><a href="#二值状态统计" class="headerlink" title="二值状态统计"></a>二值状态统计</h2><blockquote>
+<p>也就是集合中的元素的值只有 0 和 1 两种，在签到打卡和用户是否登陆的场景中，只需记录<code>签到(1)</code>或 <code>未签到(0)</code>，<code>已登录(1)</code>或<code>未登陆(0)</code>。</p>
+<p>假如我们在判断用户是否登陆的场景中使用 Redis 的 String 类型实现（<strong>key -&gt; userId，value -&gt; 0 表示下线，1 - 登陆</strong>），假如存储 100 万个用户的登陆状态，如果以字符串的形式存储，就需要存储 100 万个字符串了，内存开销太大。</p>
+</blockquote>
+<h3 id="为什么-String-类型内存开销大？"><a href="#为什么-String-类型内存开销大？" class="headerlink" title="为什么 String 类型内存开销大？"></a><strong>为什么 String 类型内存开销大？</strong></h3><blockquote>
+<p>String 类型除了记录实际数据以外，还需要额外的内存记录数据长度、空间使用等信息。</p>
+<p>当保存的数据包含字符串，String 类型就使用简单动态字符串（SDS）结构体来保存：</p>
+<ul>
+<li><strong>len</strong>：占 4 个字节，表示 buf 的已用长度。</li>
+<li><strong>alloc</strong>：占 4 个字节，表示 buf 实际分配的长度，通常 &gt; len。</li>
+<li><strong>buf</strong>：字节数组，保存实际的数据，Redis 自动在数组最后加上一个 “\0”，额外占用一个字节的开销。</li>
+</ul>
+<p>所以，在 SDS 中除了 buf 保存实际的数据， len 与 alloc 就是额外的开销。</p>
+<p>另外，还有一个 <strong>RedisObject 结构的开销</strong>，因为 Redis 的数据类型有很多，而且，不同数据类型都有些相同的元数据要记录（比如最后一次访问的时间、被引用的次数等）。</p>
+<p>所以，Redis 会用一个 RedisObject 结构体来统一记录这些元数据，同时指向实际数据</p>
+</blockquote>
+<p><img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202201111504331.png"></p>
+<blockquote>
+<p>对于二值状态场景，我们就可以利用 Bitmap 来实现。比如登陆状态我们用一个 bit 位表示，一亿个用户也只占用 一亿 个 bit 位内存 ≈ （100000000 / 8/ 1024/1024）12 MB。</p>
+</blockquote>
+<h3 id="什么是-Bitmap-呢？"><a href="#什么是-Bitmap-呢？" class="headerlink" title="什么是 Bitmap 呢？"></a>什么是 Bitmap 呢？</h3><blockquote>
+<p>Bitmap 的底层数据结构用的是 String 类型的 SDS 数据结构来保存位数组，Redis 把每个字节数组的 8 个 bit 位利用起来，每个 bit 位 表示一个元素的二值状态（不是 0 就是 1）。</p>
+<p>可以将 Bitmap 看成是一个 bit 为单位的数组，数组的每个单元只能存储 0 或者 1，数组的下标在 Bitmap 中叫做 offset 偏移量。</p>
+<p>为了直观展示，我们可以理解成 buf 数组的每个字节用一行表示，每一行有 8 个 bit 位，8 个格子分别表示这个字节中的 8 个 bit 位，如下图所示：</p>
+</blockquote>
+<img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202201111506294.png" alt="image-20220111150617258" style="zoom:50%;" />
+
+<blockquote>
+<p><strong>8 个 bit 组成一个 Byte，所以 Bitmap 会极大地节省存储空间。</strong> 这就是 Bitmap 的优势。</p>
+</blockquote>
+<p><strong>怎么用 Bitmap 来判断海量用户中某个用户是否在线呢？</strong></p>
+<blockquote>
+<p>Bitmap 提供了 <code>GETBIT、SETBIT</code> 操作，通过一个偏移值 offset 对 bit 数组的 offset 位置的 bit 位进行读写操作，需要注意的是 offset 从 0 开始。</p>
+<p>只需要一个 key = login_status 表示存储用户登陆状态集合数据， 将用户 ID 作为 offset，在线就设置为 1，下线设置 0。通过 <code>GETBIT</code>判断对应的用户是否在线。50000 万 用户只需要 6 MB 的空间</p>
+</blockquote>
+<p><strong>SETBIT 命令</strong></p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">SETBIT &lt;key&gt; &lt;offset&gt; &lt;value&gt;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>设置或者清空 key 的 value 在 offset 处的 bit 值（只能是 0 或者 1）。</p>
+</blockquote>
+<p><strong>GETBIT 命令</strong></p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">GETBIT &lt;key&gt; &lt;offset&gt;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>获取 key 的 value 在 offset 处的 bit 位的值，当 key 不存在时，返回 0</p>
+</blockquote>
+<p>假如我们要判断 ID = 10086 的用户的登陆情况：</p>
+<ul>
+<li>第一步，执行以下指令，表示用户已登录。</li>
+</ul>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">SETBIT login_status 10000 1</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>第二步，检查该用户是否登陆，返回值 1 表示已登录。</li>
+</ul>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">GETBIT login_status 10000</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>第三步，登出，将 offset 对应的 value 设置成 0。</li>
+</ul>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">SETBIT login_status 10000 0</span><br></pre></td></tr></table></figure>
+
+<h3 id="案例"><a href="#案例" class="headerlink" title="案例"></a>案例</h3><h4 id="用户每个月签到情况"><a href="#用户每个月签到情况" class="headerlink" title="用户每个月签到情况"></a>用户每个月签到情况</h4><blockquote>
+<p>在签到统计中，每个用户每天的签到用 1 个 bit 位表示，一年的签到只需要 365 个 bit 位。一个月最多只有 31 天，只需要 31 个 bit 位即可</p>
+</blockquote>
+<p>比如统计编号10000的用户在 2021 年 5 月份的打卡情况要如何进行？</p>
+<p>key 可以设计成 <code>uid:sign:&#123;userId&#125;:&#123;yyyyMM&#125;</code>，月份的每一天的值 - 1 可以作为 offset（因为 offset 从 0 开始，所以 <code>offset = 日期 - 1</code>）</p>
+<ul>
+<li>第一步，执行下面指令表示记录用户在 2022 年 1 月 1号打卡。</li>
+</ul>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">SETBIT uid:sign:10000:202101 1 1</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>第二步，判断用户10000在2022年1月1号是否打卡</li>
+</ul>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">GETBIT uid:sign:10000:202101 1</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>第三步，统计该用户在一月份打卡的次数，使用<code>BITCOUNT</code>指令。该指令用于统计给定的 bit 数组中，值 = 1 的 bit 位的数量。</li>
+</ul>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">BITCOUNT uid:sign:10000:202101</span><br></pre></td></tr></table></figure>
+
+<p><strong>如何统计这个月首次打卡时间呢？</strong></p>
+<blockquote>
+<p>Redis 提供了 <code>BITPOS key bitValue [start] [end]</code>指令，返回数据表示 Bitmap 中第一个值为 <code>bitValue</code> 的 offset 位置。</p>
+<p>在默认情况下， 命令将检测整个位图， 用户可以通过可选的 <code>start</code> 参数和 <code>end</code> 参数指定要检测的范围</p>
+</blockquote>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">BITPOS uid:sign:10000:202101 1</span><br></pre></td></tr></table></figure>
+
+<p>需要注意的是，我们需要将返回的 value + 1 ，因为 offset 从 0 开始。</p>
+<h4 id="连续签到总数"><a href="#连续签到总数" class="headerlink" title="连续签到总数"></a>连续签到总数</h4><blockquote>
+<p>在记录了一个亿的用户连续 7 天的打卡数据，如何统计出这连续 7 天连续打卡用户总数呢？</p>
+</blockquote>
+<blockquote>
+<p>我们把每天的日期作为 Bitmap 的 key，userId 作为 offset，若是打卡则将 offset 位置的 bit 设置成 1。</p>
+</blockquote>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">SETBIT 20220101 1 1 </span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>key 对应的集合的每个 bit 位的数据则是一个用户在该日期的打卡记录。</p>
+<p>一共有 7 个这样的 Bitmap，如果我们能对这 7 个 Bitmap 的对应的 bit 位做 『与』运算。</p>
+<p>同样的 UserID  offset 都是一样的，当一个 userID 在 7 个 Bitmap 对应对应的 offset 位置的 bit = 1 就说明该用户 7 天连续打卡。</p>
+<p>结果保存到一个新 Bitmap 中，我们再通过 <code>BITCOUNT</code> 统计 bit = 1 的个数便得到了连续打卡 7 天的用户总数了。</p>
+<p>Redis 提供了 <code>BITOP operation destkey key [key ...]</code>这个指令用于对一个或者多个 键 = key 的 Bitmap 进行位元操作。</p>
+<p><code>opration</code> 可以是 <code>and</code>、<code>OR</code>、<code>NOT</code>、<code>XOR</code>。当 BITOP 处理不同长度的字符串时，较短的那个字符串所缺少的部分会被看作 <code>0</code> 。空的 <code>key</code> 也被看作是包含 <code>0</code> 的字符串序列。</p>
+</blockquote>
+<blockquote>
+<p>ps:这里演示连续的三天</p>
+</blockquote>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">&gt;</span><span class="bash"> Setbit 20220101 1 1</span></span><br><span class="line"></span><br><span class="line">0</span><br><span class="line"></span><br><span class="line"><span class="meta">&gt;</span><span class="bash"> Setbit 20220102 1 1</span></span><br><span class="line"></span><br><span class="line">0</span><br><span class="line"></span><br><span class="line"><span class="meta">&gt;</span><span class="bash"> Setbit 20220103 1 1</span></span><br><span class="line"></span><br><span class="line">0</span><br><span class="line"></span><br><span class="line"><span class="meta">&gt;</span><span class="bash"> Setbit 20220101 2 1</span></span><br><span class="line">0</span><br><span class="line"><span class="meta">&gt;</span><span class="bash"> Setbit 20220102 2 1</span></span><br><span class="line">0</span><br><span class="line"></span><br><span class="line">//与操作</span><br><span class="line"><span class="meta">&gt;</span><span class="bash"> BITOP AND destmap 20220101 20220102 20220103</span></span><br><span class="line">1</span><br><span class="line">// 统计 bit 位 =  1 的个数 //代表只有一个用户连续的</span><br><span class="line"><span class="meta">&gt;</span><span class="bash"> BITCOUNT destmap</span></span><br><span class="line">1</span><br><span class="line"></span><br><span class="line"><span class="meta">&gt;</span><span class="bash"> Setbit 20220103 2 1</span></span><br><span class="line">0</span><br><span class="line"></span><br><span class="line"><span class="meta">&gt;</span><span class="bash"> BITOP AND destmap 20220101 20220102 20220103</span></span><br><span class="line">1</span><br><span class="line"></span><br><span class="line"><span class="meta">&gt;</span><span class="bash"> BITCOUNT destmap</span></span><br><span class="line">2</span><br></pre></td></tr></table></figure>
+
+
+
+<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><blockquote>
+<p>思路才是最重要，当我们遇到的统计场景只需要统计数据的二值状态，比如用户是否存在、 ip 是否是黑名单、以及签到打卡统计等场景就可以考虑使用 Bitmap。</p>
+<p>只需要一个 bit 位就能表示 0 和 1。在统计海量数据的时候将大大减少内存占用。</p>
+</blockquote>
+</div><div class="article-licensing box"><div class="licensing-title"><p>巧用 Bitmap 实现亿级海量数据统计</p><p><a href="https://yweidong.github.io/redis/巧用-Bitmap-实现亿级海量数据统计.html">https://yweidong.github.io/redis/巧用-Bitmap-实现亿级海量数据统计.html</a></p></div><div class="licensing-meta level is-mobile"><div class="level-left"><div class="level-item is-narrow"><div><h6>作者</h6><a href="https://Yweidong.github.io"><p>wei_tung</p></a></div></div><div class="level-item is-narrow"><div><h6>发布于</h6><p>2022-01-11</p></div></div><div class="level-item is-narrow"><div><h6>更新于</h6><p>2022-01-11</p></div></div><div class="level-item is-narrow"><div><h6>许可协议</h6><p><a class="icon" rel="noopener" target="_blank" title="Creative Commons" href="https://creativecommons.org/"><i class="fab fa-creative-commons"></i></a><a class="icon" rel="noopener" target="_blank" title="Attribution" href="https://creativecommons.org/licenses/by/4.0/"><i class="fab fa-creative-commons-by"></i></a><a class="icon" rel="noopener" target="_blank" title="Noncommercial" href="https://creativecommons.org/licenses/by-nc/4.0/"><i class="fab fa-creative-commons-nc"></i></a></p></div></div></div></div></div><div class="recommend-area"></div><link rel="stylesheet" href="https://cdnjs.loli.net/ajax/libs/social-share.js/1.0.16/css/share.min.css"><div class="social-share"></div><script src="https://cdnjs.loli.net/ajax/libs/social-share.js/1.0.16/js/social-share.min.js"></script></article></div><div class="card"><div class="card-content"><h3 class="menu-label has-text-centered">喜欢这篇文章？打赏一下作者吧</h3><div class="buttons is-centered"><a class="button donate" data-type="alipay"><span class="icon is-small"><i class="fab fa-alipay"></i></span><span>支付宝</span><span class="qrcode"><img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291611846.png" alt="支付宝"></span></a><a class="button donate" data-type="wechat"><span class="icon is-small"><i class="fab fa-weixin"></i></span><span>微信</span><span class="qrcode"><img src="https://dong-pdf-preview.oss-cn-shanghai.aliyuncs.com/blog/202112291609037.png" alt="微信"></span></a></div></div></div><nav class="post-navigation mt-4 level is-mobile"><div class="level-end"><a class="article-nav-next level level-item link-muted" href="/java/Java%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B-JMM.html"><span class="level-item">Java内存模型(JMM)</span><i class="level-item fas fa-chevron-right"></i></a></div></nav><!--!--><div class="card"><div class="card-content"><div class="title is-5">评论</div><div id="comment-container"></div><link rel="stylesheet" href="https://cdnjs.loli.net/ajax/libs/gitalk/1.6.0/gitalk.css"><script> $.getScript('/js/gitalk.min.js', function () { 
+            var gitalk = new Gitalk({
+            language:'zh-CN',
+            id: '8590008c53033a38b7c27de51de70dbe',
+            repo: 'blog_comment',
+            owner: 'Yweidong',
+            clientID: 'ae76bb3b78b0961c9ac4',
+            clientSecret: '115ae4b382976bfdf4cc82d28b8569ae94277218',
+            admin: ["Yweidong"],
+            createIssueManually: true,
+            distractionFreeMode: false,
+            perPage: 10,
+            pagerDirection: 'last',
+            proxy: 'https://cors-anywhere.azm.workers.dev/https://github.com/login/oauth/access_token',
+            
+            enableHotKey: true,
+            isLocked: false
+        })
+        gitalk.render('comment-container')});</script></div></div></div><div class="column column-left is-4-tablet is-4-desktop is-3-widescreen  order-1 is-sticky"><div class="card widget" id="toc" data-type="toc"><div class="card-content"><div class="menu"><h3 class="menu-label">目录</h3><ul class="menu-list"><li><a class="is-flex is-mobile" href="#二值状态统计"><span>二值状态统计</span></a><ul class="menu-list"><li><a class="is-flex is-mobile" href="#为什么-String-类型内存开销大？"><span>为什么 String 类型内存开销大？</span></a></li><li><a class="is-flex is-mobile" href="#什么是-Bitmap-呢？"><span>什么是 Bitmap 呢？</span></a></li><li><a class="is-flex is-mobile" href="#案例"><span>案例</span></a><ul class="menu-list"><li><a class="is-flex is-mobile" href="#用户每个月签到情况"><span>用户每个月签到情况</span></a></li><li><a class="is-flex is-mobile" href="#连续签到总数"><span>连续签到总数</span></a></li></ul></li><li><a class="is-flex is-mobile" href="#总结"><span>总结</span></a></li></ul></li></ul></div></div><style>.menu-list > li > a.is-active + .menu-list { display: block; }.menu-list > li > a + .menu-list { display: none; }</style><script src="/js/toc.js" defer></script></div><div class="card widget" data-type="profile"><div class="card-content"><nav class="level"><div class="level-item has-text-centered flex-shrink-1"><div><figure class="image is-128x128 mx-auto mb-2"><img class="avatar is-rounded" src="https://cdn.jsdelivr.net/gh/removeif/removeif-demo@latest/img/avatar.png" alt="wei_tung"></figure><p class="title is-size-4 is-block" style="line-height:inherit;">wei_tung</p><p class="is-size-6 is-block">尚未执佩剑，转眼即江湖</p><p class="is-size-6 is-flex justify-content-center"><i class="fas fa-map-marker-alt mr-1"></i><span>JiangSu,China</span></p></div></div></nav><nav class="level is-mobile"><div class="level-item has-text-centered is-marginless"><div><p class="heading">文章</p><a href="/archives"><p class="title">7</p></a></div></div><div class="level-item has-text-centered is-marginless"><div><p class="heading">分类</p><a href="/categories"><p class="title">7</p></a></div></div><div class="level-item has-text-centered is-marginless"><div><p class="heading">标签</p><a href="/tags"><p class="title">7</p></a></div></div></nav><div class="level"><a class="level-item button is-primary is-rounded" href="https://github.com/Yweidong" target="_blank" rel="noopener">关注我</a></div><div class="level is-mobile"><a class="level-item button is-transparent is-marginless" target="_blank" rel="noopener" title="Github" href="https://github.com/Yweidong"><i class="fab fa-github"></i></a><a class="level-item button is-transparent is-marginless" target="_blank" rel="noopener" title="Email" href="mailto:1371690483@qq.com"><i class="fa fa-envelope"></i></a><a class="level-item button is-transparent is-marginless" target="_blank" rel="noopener" title="Next" href="https://github.com/Yweidong/Yweidong.github.io"><i class="fab fa-dribbble"></i></a><a class="level-item button is-transparent is-marginless" target="_blank" rel="noopener" title="RSS" href="/atom.xml"><i class="fas fa-rss"></i></a></div><div><hr><p id="hitokoto">:D 一言句子获取中...</p><script type="text/javascript" defer>function getYiyan(){
+                                $.getJSON("https://v1.hitokoto.cn/", function (data) {
+                                if(data){
+                                    $('#hitokoto').html("");
+                                    $('#hitokoto').append("<strong style='color: #3273dc;'>"+data.hitokoto+"</strong>"+
+                                    "<p>"+"来源《"+data.from+"》</p><p>提供者-"+data.creator+"</p>");
+                                }});}
+                                $(function (){getYiyan();$('#hitokoto').click(function(){getYiyan();})});</script></div></div></div><div class="card widget" data-type="links"><div class="card-content"><div class="menu"><h3 class="menu-label">链接</h3><ul class="menu-list"><li><a class="level is-mobile" href="https://hexo.io" target="_blank" rel="noopener"><span class="level-left"><span class="level-item">Hexo</span></span><span class="level-right"><span class="level-item tag">hexo.io</span></span></a></li><li><a class="level is-mobile" href="https://bulma.io" target="_blank" rel="noopener"><span class="level-left"><span class="level-item">Bulma</span></span><span class="level-right"><span class="level-item tag">bulma.io</span></span></a></li></ul></div></div></div><div class="card widget"><div class="card-content"><h3 class="menu-label">最新评论</h3><span class="body_hot_comment">加载中，最新评论有1分钟缓存...</span></div></div><div class="card widget"><div class="card-content"><h3 class="menu-label">最新文章</h3><article class="media"><div class="media-content"><p class="date"><time dateTime="2022-01-11T06:46:12.000Z">2022-01-11</time></p><p class="title"><a href="/redis/%E5%B7%A7%E7%94%A8-Bitmap-%E5%AE%9E%E7%8E%B0%E4%BA%BF%E7%BA%A7%E6%B5%B7%E9%87%8F%E6%95%B0%E6%8D%AE%E7%BB%9F%E8%AE%A1.html">巧用 Bitmap 实现亿级海量数据统计</a></p><p class="categories"><a href="/categories/redis/">redis</a></p></div></article><article class="media"><div class="media-content"><p class="date"><time dateTime="2022-01-05T07:09:57.000Z">2022-01-05</time></p><p class="title"><a href="/java/Java%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B-JMM.html">Java内存模型(JMM)</a></p><p class="categories"><a href="/categories/Java/">Java</a></p></div></article><article class="media"><div class="media-content"><p class="date"><time dateTime="2022-01-04T03:56:52.000Z">2022-01-04</time></p><p class="title"><a href="/mysql/undo-log%E7%89%88%E6%9C%AC%E9%93%BE%E4%B8%8EReadView%E6%9C%BA%E5%88%B6%E2%80%9C.html">undo log版本链与ReadView机制“</a></p><p class="categories"><a href="/categories/mysql/">mysql</a></p></div></article><article class="media"><div class="media-content"><p class="date"><time dateTime="2022-01-04T03:43:43.000Z">2022-01-04</time></p><p class="title"><a href="/mysql/%E6%95%B0%E6%8D%AE%E5%BA%93%E4%B8%AD%E4%BA%8B%E5%8A%A1%E7%9A%84%E5%87%A0%E7%A7%8D%E9%9A%94%E7%A6%BB%E7%BA%A7%E5%88%AB.html">数据库中事务的几种隔离级别</a></p><p class="categories"><a href="/categories/mysql/">mysql</a></p></div></article><article class="media"><div class="media-content"><p class="date"><time dateTime="2022-01-04T02:16:33.000Z">2022-01-04</time></p><p class="title"><a href="/mysql/mysql%E6%97%A5%E5%BF%97%E7%B3%BB%E7%BB%9F.html">mysql日志系统</a></p><p class="categories"><a href="/categories/mysql/">mysql</a></p></div></article></div></div><div class="card widget"><div class="card-content"><div class="menu"><h3 class="menu-label">分类</h3><ul class="menu-list"><li><a class="level is-mobile is-marginless" href="/categories/Java/"><span class="level-start"><span class="level-item">Java</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li><li><a class="level is-mobile is-marginless" href="/categories/Netty/"><span class="level-start"><span class="level-item">Netty</span></span><span class="level-end"><span class="level-item tag">1</span></span></a><ul class="mr-0"><li><a class="level is-mobile is-marginless" href="/categories/Netty/Netty%E6%BA%90%E7%A0%81%E5%89%96%E6%9E%90/"><span class="level-start"><span class="level-item">Netty源码剖析</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li></ul></li><li><a class="level is-mobile is-marginless" href="/categories/mysql/"><span class="level-start"><span class="level-item">mysql</span></span><span class="level-end"><span class="level-item tag">3</span></span></a></li><li><a class="level is-mobile is-marginless" href="/categories/redis/"><span class="level-start"><span class="level-item">redis</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li><li><a class="level is-mobile is-marginless" href="/categories/%E5%85%AB%E8%82%A1%E6%96%87/"><span class="level-start"><span class="level-item">八股文</span></span><span class="level-end"><span class="level-item tag">1</span></span></a><ul class="mr-0"><li><a class="level is-mobile is-marginless" href="/categories/%E5%85%AB%E8%82%A1%E6%96%87/JVM/"><span class="level-start"><span class="level-item">JVM</span></span><span class="level-end"><span class="level-item tag">1</span></span></a></li></ul></li></ul></div></div></div><div class="card widget"><div class="card-content"><div class="menu"><h3 class="menu-label">归档</h3><ul class="menu-list"><li><a class="level is-mobile is-marginless" href="/archives/2022/01/"><span class="level-start"><span class="level-item">一月 2022</span></span><span class="level-end"><span class="level-item tag">5</span></span></a></li><li><a class="level is-mobile is-marginless" href="/archives/2021/12/"><span class="level-start"><span class="level-item">十二月 2021</span></span><span class="level-end"><span class="level-item tag">2</span></span></a></li></ul></div></div></div><div class="card widget"><div class="card-content"><div class="menu"><h3 class="menu-label">标签</h3><div class="field is-grouped is-grouped-multiline"><div class="control"><a class="tags has-addons" href="/tags/mysql/"><span class="tag">mysql</span><span class="tag is-grey-lightest">3</span></a></div><div class="control"><a class="tags has-addons" href="/tags/%E5%85%AB%E8%82%A1%E6%96%87/"><span class="tag">八股文</span><span class="tag is-grey-lightest">3</span></a></div><div class="control"><a class="tags has-addons" href="/tags/JAVA/"><span class="tag">JAVA</span><span class="tag is-grey-lightest">2</span></a></div><div class="control"><a class="tags has-addons" href="/tags/JMM/"><span class="tag">JMM</span><span class="tag is-grey-lightest">1</span></a></div><div class="control"><a class="tags has-addons" href="/tags/JVM/"><span class="tag">JVM</span><span class="tag is-grey-lightest">1</span></a></div><div class="control"><a class="tags has-addons" href="/tags/Netty/"><span class="tag">Netty</span><span class="tag is-grey-lightest">1</span></a></div><div class="control"><a class="tags has-addons" href="/tags/redis/"><span class="tag">redis</span><span class="tag is-grey-lightest">1</span></a></div></div></div></div></div><div class="card widget" data-type="subscribe-email"><div class="card-content"><div class="menu"><h3 class="menu-label">订阅更新</h3><form action="https://feedburner.google.com/fb/a/mailverify" method="post" target="popupwindow" onsubmit="window.open(&#039;https://feedburner.google.com/fb/a/mailverify?uri=&#039;,&#039;popupwindow&#039;,&#039;scrollbars=yes,width=550,height=520&#039;);return true"><input type="hidden" value="" name="uri"><input type="hidden" name="loc" value="en_US"><div class="field has-addons"><div class="control has-icons-left is-expanded"><input class="input" name="email" type="email" placeholder="Email"><span class="icon is-small is-left"><i class="fas fa-envelope"></i></span></div><div class="control"><input class="button" type="submit" value="订阅"></div></div></form></div></div></div><!--!--><div class="column-right-shadow is-hidden-widescreen"></div></div></div></div></section><footer class="footer"><div class="container"><div class="level"><div class="level-start"><a class="footer-logo is-block mb-2" href="/"><img src="/img/dong.png" alt="阿东IT博客" height="28"></a><p class="size-small"><span>&copy; 2022 wei_tung</span>  Powered by <a href="https://hexo.io/" target="_blank">Hexo</a> &amp; <a href="https://github.com/ppoffice/hexo-theme-icarus" target="_blank">Icarus</a> &amp; <a href="https://github.com/removeif/hexo-theme-amazing" target="_blank">Amazing</a> <br><span>© 版权说明：[本网站所有内容均收集于互联网或自己创作,<br />&nbsp;&nbsp;&nbsp;&nbsp;方便于网友与自己学习交流，如有侵权，请<a href="/message" target="_blank">留言</a>，立即处理]<br /></span><div class="size-small"><span>❤️感谢 <strong><span id="busuanzi_value_site_uv">99+</span></strong> 小伙伴的 <strong><span id="busuanzi_value_site_pv">99+</span></strong> 次光临！❤️</span></div></p></div><div class="level-end"><div class="field has-addons"><p class="control"><a class="button is-transparent is-large" target="_blank" rel="noopener" title="Creative Commons" href="https://creativecommons.org/"><i class="fab fa-creative-commons"></i></a></p><p class="control"><a class="button is-transparent is-large" target="_blank" rel="noopener" title="Attribution 4.0 International" href="https://creativecommons.org/licenses/by/4.0/"><i class="fab fa-creative-commons-by"></i></a></p></div></div></div></div></footer><script src="https://cdnjs.loli.net/ajax/libs/moment.js/2.22.2/moment-with-locales.min.js"></script><script src="https://cdnjs.loli.net/ajax/libs/clipboard.js/2.0.4/clipboard.min.js" async></script><script>moment.locale("zh-CN");</script><script>var IcarusThemeSettings = {
+            article: {
+                highlight: {
+                    clipboard: true,
+                    fold: 'unfolded'
+                }
+            }
+        };</script><script src="/js/column.js"></script><script src="/js/animation.js"></script><a id="back-to-top" title="回到顶端" href="javascript:;"><i class="fas fa-chevron-up"></i></a><script src="/js/back_to_top.js" defer></script><!--!--><!--!--><!--!--><script src="https://cdnjs.loli.net/ajax/libs/lightgallery/1.6.8/js/lightgallery.min.js" defer></script><script src="https://cdnjs.loli.net/ajax/libs/justifiedGallery/3.7.0/js/jquery.justifiedGallery.min.js" defer></script><script>window.addEventListener("load", () => {
+            if (typeof $.fn.lightGallery === 'function') {
+                $('.article').lightGallery({ selector: '.gallery-item' });
+            }
+            if (typeof $.fn.justifiedGallery === 'function') {
+                if ($('.justified-gallery > p > .gallery-item').length) {
+                    $('.justified-gallery > p > .gallery-item').unwrap();
+                }
+                $('.justified-gallery').justifiedGallery();
+            }
+        });</script><!--!--><!--!--><!--!--><script src="/js/main.js" defer></script><script>$.getScript('/js/comment-issue-data.js',function(){loadIssueData('ae76bb3b78b0961c9ac4','115ae4b382976bfdf4cc82d28b8569ae94277218','Yweidong','blog_comment',false);})</script><div class="searchbox"><div class="searchbox-container"><div class="searchbox-header"><div class="searchbox-input-container"><input class="searchbox-input" type="text" placeholder="想要查找什么..."></div><a class="searchbox-close" href="javascript:;">×</a></div><div class="searchbox-body"></div></div></div><script src="/js/insight.js" defer></script><script>document.addEventListener('DOMContentLoaded', function () {
+            loadInsight({"contentUrl":"/content.json"}, {"hint":"想要查找什么...","untitled":"(无标题)","posts":"文章","pages":"页面","categories":"分类","tags":"标签"});
+        });</script><script src="https://cdn.jsdelivr.net/npm/pjax@0.2.8/pjax.js"></script><script type="text/javascript">var pjax = new Pjax({
+            elements: "a",//代表点击链接就更新
+            selectors: [  //代表要更新的节点
+                ".section",
+                "title"
+            ],
+            cache: true,
+            cacheBust:false
+        })
+
+        function loadBusuanzi(){
+        $.getScript("//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js", function () {});
+        }
+
+        // 开始 PJAX 执行的函数
+        document.addEventListener('pjax:send', function () {
+        });
+        
+        // PJAX 完成之后执行的函数，可以和上面的重载放在一起
+        document.addEventListener('pjax:complete', function () {
+            $(".section").css({opacity:1});
+            if(true){
+                $.getScript('/js/comment-issue-data.js',function(){loadIssueData('ae76bb3b78b0961c9ac4','115ae4b382976bfdf4cc82d28b8569ae94277218','Yweidong','blog_comment',false);});
+            }
+            if(false){
+                loadMathJax();
+            }
+            loadMainJs(jQuery, window.moment, window.ClipboardJS, window.IcarusThemeSettings);
+            loadBackTop();
+            loadBusuanzi();
+            if(typeof loadBanner == 'function'){
+                loadBanner();
+            }
+        });</script></body></html>
